@@ -1,1 +1,4 @@
 project_id = "wakgxinhspihyktlasni"
+
+[functions.analyze-sources]
+verify_jwt = false

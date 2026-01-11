@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { ArrowRight, ArrowLeft, ChevronDown, ChevronRight, Loader2, Globe, Scale, Landmark, Building2, Flag, FileText, Link2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, ChevronDown, ChevronRight, Loader2, Globe, Scale, Landmark, Building2, Flag, FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DigestCategory, DigestItem, InputLink } from "@/types/digest";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { analyzeSources, buildCategoriesFromArticles } from "@/lib/api/digest";
+import { toast } from "sonner";
 
 interface TocStepProps {
   links: InputLink[];
@@ -22,78 +24,48 @@ const categoryIcons: Record<string, React.ReactNode> = {
   "Uncategorized": <FileText className="w-4 h-4" />,
 };
 
-// Extract domain name from URL for source display
-const extractDomain = (url: string): string => {
-  try {
-    const domain = new URL(url).hostname.replace('www.', '');
-    return domain.charAt(0).toUpperCase() + domain.slice(1);
-  } catch {
-    return "Unknown Source";
-  }
-};
-
-// Generate TOC strictly from input sources only
-const generateTocFromSources = (links: InputLink[], pdfFile?: File): DigestCategory[] => {
-  const categories: DigestCategory[] = [];
-
-  // If we have links, create items from them
-  if (links.length > 0) {
-    const items: DigestItem[] = links.map((link, index) => ({
-      id: `source-${index}`,
-      headline: `[Pending] Article from ${extractDomain(link.url)}`,
-      headlineUrl: link.url,
-      sources: [
-        { name: extractDomain(link.url), url: link.url }
-      ],
-      bulletPoints: [],
-      insights: [],
-      category: "Uncategorized",
-    }));
-
-    categories.push({
-      name: "Input Sources",
-      icon: "link2",
-      items,
-    });
-  }
-
-  // If we have PDF, create a category for it
-  if (pdfFile) {
-    categories.push({
-      name: "PDF Document",
-      icon: "filetext",
-      items: [
-        {
-          id: "pdf-source",
-          headline: `[Pending] Content from: ${pdfFile.name}`,
-          headlineUrl: "#",
-          sources: [{ name: pdfFile.name, url: "#" }],
-          bulletPoints: [],
-          insights: [],
-          category: "PDF Document",
-        }
-      ],
-    });
-  }
-
-  return categories;
-};
-
 export const TocStep = ({ links, pdfFile, onNext, onBack }: TocStepProps) => {
   const [isGenerating, setIsGenerating] = useState(true);
   const [categories, setCategories] = useState<DigestCategory[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string>("Initializing...");
 
   useEffect(() => {
-    // Generate TOC strictly from input sources only
-    const timer = setTimeout(() => {
-      const generated = generateTocFromSources(links, pdfFile);
-      setCategories(generated);
-      setExpandedCategories(generated.map(c => c.name));
-      setIsGenerating(false);
-    }, 1500);
+    const analyzeContent = async () => {
+      if (links.length === 0 && !pdfFile) {
+        setError("No sources provided");
+        setIsGenerating(false);
+        return;
+      }
 
-    return () => clearTimeout(timer);
+      try {
+        setProgress("Scraping articles and analyzing content...");
+        
+        const result = await analyzeSources(links);
+        
+        if (!result.success || !result.articles) {
+          throw new Error(result.error || "Failed to analyze sources");
+        }
+
+        setProgress("Building table of contents...");
+        
+        const generatedCategories = buildCategoriesFromArticles(result.articles);
+        setCategories(generatedCategories);
+        setExpandedCategories(generatedCategories.map(c => c.name));
+        
+        toast.success(`Successfully analyzed ${result.articles.length} articles`);
+      } catch (err) {
+        console.error("Error analyzing sources:", err);
+        const errorMessage = err instanceof Error ? err.message : "Failed to analyze sources";
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setIsGenerating(false);
+      }
+    };
+
+    analyzeContent();
   }, [links, pdfFile]);
 
   const toggleCategory = (name: string) => {
@@ -118,9 +90,32 @@ export const TocStep = ({ links, pdfFile, onNext, onBack }: TocStepProps) => {
           <h3 className="font-display text-xl font-semibold text-foreground mb-2">
             Generating Table of Contents
           </h3>
-          <p className="text-muted-foreground text-center max-w-md">
-            Analyzing your sources and organizing content into categories...
+          <p className="text-muted-foreground text-center max-w-md mb-4">
+            {progress}
           </p>
+          <p className="text-sm text-muted-foreground/70">
+            This may take a moment depending on the number of sources...
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full max-w-4xl mx-auto animate-fade-in">
+        <Card className="card-editorial p-12 flex flex-col items-center justify-center min-h-[400px]">
+          <AlertCircle className="w-12 h-12 text-destructive mb-4" />
+          <h3 className="font-display text-xl font-semibold text-foreground mb-2">
+            Analysis Failed
+          </h3>
+          <p className="text-muted-foreground text-center max-w-md mb-6">
+            {error}
+          </p>
+          <Button variant="outline" onClick={onBack}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Input
+          </Button>
         </Card>
       </div>
     );
@@ -241,6 +236,7 @@ export const TocStep = ({ links, pdfFile, onNext, onBack }: TocStepProps) => {
         </Button>
         <Button
           onClick={() => onNext(categories)}
+          disabled={categories.length === 0}
           className="bg-primary hover:bg-primary/90 text-primary-foreground px-8"
         >
           Generate Report
