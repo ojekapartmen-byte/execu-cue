@@ -35,11 +35,21 @@ serve(async (req) => {
   }
 
   try {
-    const { topic, category, sourceLinks } = await req.json();
+    const { topic, category, sourceLinks, sourceImages } = await req.json();
 
-    if (!topic || !category || !sourceLinks?.length) {
+    if (!topic || !category) {
       return new Response(
-        JSON.stringify({ error: 'Topic, category, dan source links diperlukan' }),
+        JSON.stringify({ error: 'Topic dan category diperlukan' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const hasLinks = sourceLinks && sourceLinks.length > 0;
+    const hasImages = sourceImages && sourceImages.length > 0;
+
+    if (!hasLinks && !hasImages) {
+      return new Response(
+        JSON.stringify({ error: 'Minimal satu link sumber atau gambar diperlukan' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -54,7 +64,7 @@ serve(async (req) => {
     // Scrape source links using Firecrawl
     let scrapedContent: string[] = [];
     
-    if (FIRECRAWL_API_KEY) {
+    if (FIRECRAWL_API_KEY && hasLinks) {
       console.log('Scraping source links with Firecrawl...');
       
       for (const url of sourceLinks) {
@@ -91,8 +101,26 @@ serve(async (req) => {
           console.error(`Error scraping ${url}:`, scrapeError);
         }
       }
-    } else {
+    } else if (hasLinks) {
       console.log('Firecrawl not configured, proceeding with AI browsing capability');
+    }
+
+    // Process source images for AI vision
+    let imageDescriptions: string[] = [];
+    const imageContents: { type: string; image_url: { url: string } }[] = [];
+    
+    if (hasImages) {
+      console.log(`Processing ${sourceImages.length} source images...`);
+      
+      for (const img of sourceImages) {
+        if (img.base64) {
+          imageContents.push({
+            type: "image_url",
+            image_url: { url: img.base64 }
+          });
+          imageDescriptions.push(`- Gambar: ${img.name}`);
+        }
+      }
     }
 
     // Category descriptions for AI prompt
@@ -135,7 +163,7 @@ Perspektif penulisan: ${categoryContext}`;
 
 KONTEN DARI SUMBER REFERENSI (rewrite dengan gaya sendiri, jangan copy paste):
 ${scrapedContent.join('\n\n')}`;
-    } else {
+    } else if (hasLinks) {
       userPrompt += `
 
 Link sumber referensi (gunakan untuk browsing): ${sourceLinks.join(', ')}
@@ -143,7 +171,28 @@ Link sumber referensi (gunakan untuk browsing): ${sourceLinks.join(', ')}
 Silakan browsing dan riset topik ini untuk mendapatkan informasi yang akurat, kemudian tulis artikel dengan gaya profesional.`;
     }
 
+    if (hasImages) {
+      userPrompt += `
+
+GAMBAR SUMBER YANG DIUPLOAD:
+${imageDescriptions.join('\n')}
+
+Analisis gambar-gambar yang diupload di atas. Ekstrak informasi penting, teks, data, atau insight dari gambar tersebut untuk dijadikan bahan penulisan artikel.`;
+    }
+
     console.log('Generating article with AI...');
+
+    // Build message content - text only or multimodal
+    let userContent: string | { type: string; text?: string; image_url?: { url: string } }[];
+    
+    if (imageContents.length > 0) {
+      userContent = [
+        { type: "text", text: userPrompt },
+        ...imageContents
+      ];
+    } else {
+      userContent = userPrompt;
+    }
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -155,7 +204,7 @@ Silakan browsing dan riset topik ini untuk mendapatkan informasi yang akurat, ke
         model: 'google/gemini-3-flash-preview',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'user', content: userContent }
         ],
         temperature: 0.7,
         max_tokens: 4000,
