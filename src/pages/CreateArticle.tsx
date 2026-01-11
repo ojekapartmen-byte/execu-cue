@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2, Sparkles, FileText, ExternalLink, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 type ArticleCategory = "mentor" | "investor" | "leader";
@@ -19,6 +19,13 @@ interface SourceLink {
   url: string;
 }
 
+interface SourceImage {
+  id: string;
+  file: File;
+  preview: string;
+  base64?: string;
+}
+
 const CreateArticle = () => {
   const { toast } = useToast();
   const [topic, setTopic] = useState("");
@@ -26,8 +33,10 @@ const CreateArticle = () => {
   const [sourceLinks, setSourceLinks] = useState<SourceLink[]>([
     { id: crypto.randomUUID(), url: "" }
   ]);
+  const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedArticle, setGeneratedArticle] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addSourceLink = () => {
     setSourceLinks([...sourceLinks, { id: crypto.randomUUID(), url: "" }]);
@@ -63,6 +72,75 @@ const CreateArticle = () => {
     return descriptions[cat];
   };
 
+  // Image handling functions
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newImages: SourceImage[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "File tidak valid",
+          description: `${file.name} bukan file gambar`,
+          variant: "destructive"
+        });
+        continue;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File terlalu besar",
+          description: `${file.name} melebihi 5MB`,
+          variant: "destructive"
+        });
+        continue;
+      }
+
+      // Create preview and convert to base64
+      const preview = URL.createObjectURL(file);
+      const base64 = await fileToBase64(file);
+      
+      newImages.push({
+        id: crypto.randomUUID(),
+        file,
+        preview,
+        base64
+      });
+    }
+
+    setSourceImages(prev => [...prev, ...newImages]);
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const removeImage = (id: string) => {
+    setSourceImages(prev => {
+      const image = prev.find(img => img.id === id);
+      if (image) {
+        URL.revokeObjectURL(image.preview);
+      }
+      return prev.filter(img => img.id !== id);
+    });
+  };
+
   const handleGenerate = async () => {
     if (!topic.trim()) {
       toast({
@@ -83,10 +161,10 @@ const CreateArticle = () => {
     }
 
     const validLinks = sourceLinks.filter(link => link.url.trim());
-    if (validLinks.length === 0) {
+    if (validLinks.length === 0 && sourceImages.length === 0) {
       toast({
         title: "Error",
-        description: "Silakan masukkan minimal satu link sumber",
+        description: "Silakan masukkan minimal satu link sumber atau upload gambar",
         variant: "destructive"
       });
       return;
@@ -96,11 +174,18 @@ const CreateArticle = () => {
     setGeneratedArticle(null);
 
     try {
+      // Prepare image data for API
+      const imageData = sourceImages.map(img => ({
+        name: img.file.name,
+        base64: img.base64
+      }));
+
       const { data, error } = await supabase.functions.invoke('generate-article', {
         body: {
           topic,
           category,
-          sourceLinks: validLinks.map(l => l.url)
+          sourceLinks: validLinks.map(l => l.url),
+          sourceImages: imageData
         }
       });
 
@@ -255,6 +340,59 @@ const CreateArticle = () => {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Masukkan link artikel sumber untuk dijadikan referensi penulisan
+                  </p>
+                </div>
+
+                {/* Image Upload */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Upload Gambar Sumber</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-7 text-xs"
+                    >
+                      <ImagePlus className="h-3 w-3 mr-1" />
+                      Upload Gambar
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </div>
+                  
+                  {sourceImages.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {sourceImages.map((image) => (
+                        <div key={image.id} className="relative group">
+                          <img
+                            src={image.preview}
+                            alt={image.file.name}
+                            className="w-full h-20 object-cover rounded-md border border-border"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeImage(image.id)}
+                            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                          <p className="text-[10px] text-muted-foreground truncate mt-1">
+                            {image.file.name}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-muted-foreground">
+                    Upload gambar (screenshot, infografis, dll) sebagai bahan sumber. Max 5MB per gambar.
                   </p>
                 </div>
 
