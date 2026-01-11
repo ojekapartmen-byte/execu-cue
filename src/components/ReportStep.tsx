@@ -254,63 +254,76 @@ export const ReportStep = ({ categories, onBack, onReset }: ReportStepProps) => 
 };
 
 const DigestArticle = ({ item }: { item: DigestItem }) => {
+  // Parse text with **bold** markers into React elements
+  const parseHighlightedText = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={i} className="font-bold text-primary">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
-    <Card id={item.id} className="card-editorial p-6 mb-6 animate-slide-up">
+    <Card id={item.id} className="bg-card border border-border rounded-xl p-6 mb-6 shadow-sm">
+      {/* Headline */}
       <a
         href={item.headlineUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="group flex items-start gap-2"
+        className="group inline-flex items-start gap-2 mb-3"
       >
-        <h3 className="font-display text-xl font-bold text-foreground group-hover:text-accent transition-colors">
+        <h3 className="font-display text-lg font-bold text-foreground group-hover:text-accent transition-colors leading-tight">
           {item.headline}
         </h3>
-        <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-accent transition-colors shrink-0 mt-1" />
+        <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-accent transition-colors shrink-0 mt-0.5" />
       </a>
 
-      <div className="flex flex-wrap gap-2 mt-3 mb-4">
-        <span className="text-sm font-medium text-muted-foreground">Sumber:</span>
+      {/* Source badges */}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <span className="text-sm text-muted-foreground">Sumber:</span>
         {item.sources.map((source, idx) => (
           <a
             key={idx}
             href={source.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            className="text-xs px-2.5 py-1 rounded-md bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors font-medium"
           >
             {source.name}
           </a>
         ))}
       </div>
 
-      <ul className="space-y-3 mb-6">
+      {/* Bullet points - clean table-like layout */}
+      <div className="space-y-3 mb-6">
         {item.bulletPoints.map((point, idx) => (
-          <li
-            key={idx}
-            className="flex gap-3 text-foreground leading-relaxed"
-            dangerouslySetInnerHTML={{
-              __html: `<span class="text-accent font-bold">•</span> ${point.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')}`
-            }}
-          />
+          <div key={idx} className="flex gap-2 text-sm text-foreground leading-relaxed">
+            <span className="text-primary font-bold shrink-0">•</span>
+            <p className="flex-1">{parseHighlightedText(point)}</p>
+          </div>
         ))}
-      </ul>
+      </div>
 
-      <div className="insight-box">
+      {/* Insight section */}
+      <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-accent">
         <div className="flex items-center gap-2 mb-3">
-          <Lightbulb className="w-5 h-5 text-accent" />
-          <span className="font-semibold text-foreground">🔷 Insight</span>
+          <Lightbulb className="w-4 h-4 text-accent" />
+          <span className="text-sm font-semibold text-accent">🔷 Insight</span>
         </div>
-        <ul className="space-y-2">
+        <div className="space-y-2">
           {item.insights.map((insight, idx) => (
-            <li
-              key={idx}
-              className="text-foreground leading-relaxed"
-              dangerouslySetInnerHTML={{
-                __html: `• ${insight.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')}`
-              }}
-            />
+            <div key={idx} className="flex gap-2 text-sm text-foreground/90 leading-relaxed">
+              <span className="text-muted-foreground shrink-0">•</span>
+              <p className="flex-1">{parseHighlightedText(insight)}</p>
+            </div>
           ))}
-        </ul>
+        </div>
       </div>
     </Card>
   );
