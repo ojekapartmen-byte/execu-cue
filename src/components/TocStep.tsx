@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowRight, ArrowLeft, ChevronDown, ChevronRight, Loader2, Globe, Scale, Landmark, Building2, Flag } from "lucide-react";
+import { ArrowRight, ArrowLeft, ChevronDown, ChevronRight, Loader2, Globe, Scale, Landmark, Building2, Flag, FileText, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DigestCategory, DigestItem, InputLink } from "@/types/digest";
@@ -19,103 +19,62 @@ const categoryIcons: Record<string, React.ReactNode> = {
   "Ekonomi": <Landmark className="w-4 h-4" />,
   "BUMN/Korporasi": <Building2 className="w-4 h-4" />,
   "Internasional": <Globe className="w-4 h-4" />,
+  "Uncategorized": <FileText className="w-4 h-4" />,
 };
 
-// Simulated data generation - in production, this would call an AI API
-const generateMockCategories = (links: InputLink[]): DigestCategory[] => {
-  const categories: DigestCategory[] = [
-    {
-      name: "Politik Nasional",
-      icon: "flag",
+// Extract domain name from URL for source display
+const extractDomain = (url: string): string => {
+  try {
+    const domain = new URL(url).hostname.replace('www.', '');
+    return domain.charAt(0).toUpperCase() + domain.slice(1);
+  } catch {
+    return "Unknown Source";
+  }
+};
+
+// Generate TOC strictly from input sources only
+const generateTocFromSources = (links: InputLink[], pdfFile?: File): DigestCategory[] => {
+  const categories: DigestCategory[] = [];
+
+  // If we have links, create items from them
+  if (links.length > 0) {
+    const items: DigestItem[] = links.map((link, index) => ({
+      id: `source-${index}`,
+      headline: `[Pending] Article from ${extractDomain(link.url)}`,
+      headlineUrl: link.url,
+      sources: [
+        { name: extractDomain(link.url), url: link.url }
+      ],
+      bulletPoints: [],
+      insights: [],
+      category: "Uncategorized",
+    }));
+
+    categories.push({
+      name: "Input Sources",
+      icon: "link2",
+      items,
+    });
+  }
+
+  // If we have PDF, create a category for it
+  if (pdfFile) {
+    categories.push({
+      name: "PDF Document",
+      icon: "filetext",
       items: [
         {
-          id: "pol-1",
-          headline: "Pemerintah Umumkan Kebijakan Baru Terkait Subsidi BBM",
-          headlineUrl: links[0]?.url || "https://example.com/politik-1",
-          sources: [
-            { name: "Kompas", url: "https://kompas.com" },
-            { name: "Tempo", url: "https://tempo.co" },
-          ],
+          id: "pdf-source",
+          headline: `[Pending] Content from: ${pdfFile.name}`,
+          headlineUrl: "#",
+          sources: [{ name: pdfFile.name, url: "#" }],
           bulletPoints: [],
           insights: [],
-          category: "Politik Nasional",
-        },
-        {
-          id: "pol-2",
-          headline: "DPR Gelar Rapat Paripurna Bahas RUU Kesehatan",
-          headlineUrl: links[1]?.url || "https://example.com/politik-2",
-          sources: [
-            { name: "Detik", url: "https://detik.com" },
-            { name: "CNN Indonesia", url: "https://cnnindonesia.com" },
-          ],
-          bulletPoints: [],
-          insights: [],
-          category: "Politik Nasional",
-        },
+          category: "PDF Document",
+        }
       ],
-    },
-    {
-      name: "Ekonomi",
-      icon: "landmark",
-      items: [
-        {
-          id: "eko-1",
-          headline: "Bank Indonesia Pertahankan Suku Bunga Acuan di 6%",
-          headlineUrl: links[2]?.url || "https://example.com/ekonomi-1",
-          sources: [
-            { name: "Bisnis Indonesia", url: "https://bisnis.com" },
-            { name: "Kontan", url: "https://kontan.co.id" },
-          ],
-          bulletPoints: [],
-          insights: [],
-          category: "Ekonomi",
-        },
-      ],
-    },
-    {
-      name: "Internasional",
-      icon: "globe",
-      items: [],
-      subCategories: [
-        {
-          name: "Konflik Timur Tengah",
-          items: [
-            {
-              id: "int-1",
-              headline: "Perkembangan Terbaru Situasi Gaza: PBB Desak Gencatan Senjata",
-              headlineUrl: links[3]?.url || "https://example.com/internasional-1",
-              sources: [
-                { name: "Reuters", url: "https://reuters.com" },
-                { name: "Al Jazeera", url: "https://aljazeera.com" },
-              ],
-              bulletPoints: [],
-              insights: [],
-              category: "Internasional",
-              subCategory: "Konflik Timur Tengah",
-            },
-          ],
-        },
-        {
-          name: "Hubungan Bilateral",
-          items: [
-            {
-              id: "int-2",
-              headline: "Presiden Jokowi Sambut Kunjungan PM Australia di Jakarta",
-              headlineUrl: links[4]?.url || "https://example.com/internasional-2",
-              sources: [
-                { name: "Antara", url: "https://antaranews.com" },
-                { name: "ABC News", url: "https://abc.net.au" },
-              ],
-              bulletPoints: [],
-              insights: [],
-              category: "Internasional",
-              subCategory: "Hubungan Bilateral",
-            },
-          ],
-        },
-      ],
-    },
-  ];
+    });
+  }
 
   return categories;
 };
@@ -126,16 +85,16 @@ export const TocStep = ({ links, pdfFile, onNext, onBack }: TocStepProps) => {
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
 
   useEffect(() => {
-    // Simulate AI generation delay
+    // Generate TOC strictly from input sources only
     const timer = setTimeout(() => {
-      const generated = generateMockCategories(links);
+      const generated = generateTocFromSources(links, pdfFile);
       setCategories(generated);
       setExpandedCategories(generated.map(c => c.name));
       setIsGenerating(false);
-    }, 2000);
+    }, 1500);
 
     return () => clearTimeout(timer);
-  }, [links]);
+  }, [links, pdfFile]);
 
   const toggleCategory = (name: string) => {
     setExpandedCategories(prev =>
