@@ -13,11 +13,13 @@ interface ReportStepProps {
 }
 
 // Simulated full report generation
+// INSTRUKSI: Setiap artikel harus memiliki tepat 5 poin Narasi/Ringkasan dan 5 poin Insight
 const generateFullReport = (categories: DigestCategory[]): DigestCategory[] => {
   return categories.map(cat => ({
     ...cat,
     items: cat.items.map(item => ({
       ...item,
+      // 5 POIN NARASI/RINGKASAN
       bulletPoints: [
         `**Pemerintah** mengumumkan kebijakan baru yang akan berlaku efektif mulai **1 Januari 2025**, dengan fokus pada **pengendalian inflasi** dan **stabilitas ekonomi makro**.`,
         `Menteri terkait menyatakan bahwa langkah ini diambil setelah **kajian mendalam** selama 6 bulan terakhir dengan melibatkan **berbagai pemangku kepentingan**.`,
@@ -25,26 +27,34 @@ const generateFullReport = (categories: DigestCategory[]): DigestCategory[] => {
         `Para pengamat ekonomi menilai kebijakan ini akan berdampak positif pada **daya beli masyarakat** terutama di **segmen menengah ke bawah**.`,
         `Implementasi akan dilakukan secara bertahap dengan **pilot project** di **5 provinsi** sebelum diterapkan secara nasional.`,
       ],
+      // 5 POIN INSIGHT
       insights: [
         `Kebijakan ini menunjukkan **komitmen pemerintah** dalam menjaga stabilitas ekonomi di tengah **ketidakpastian global** yang masih berlanjut.`,
         `Perlu diperhatikan bahwa keberhasilan kebijakan sangat bergantung pada **koordinasi antar-kementerian** dan **pemerintah daerah**.`,
         `Timing pengumuman yang dilakukan menjelang akhir tahun mengindikasikan **strategi komunikasi** yang terukur untuk **mengelola ekspektasi pasar**.`,
+        `Dampak jangka panjang perlu dipantau terutama terhadap **sektor UMKM** dan **industri padat karya** yang sensitif terhadap perubahan kebijakan.`,
+        `Langkah ini dapat menjadi **preseden positif** bagi reformasi kebijakan ekonomi yang lebih **transparan** dan **berbasis data**.`,
       ],
     })),
     subCategories: cat.subCategories?.map(sub => ({
       ...sub,
       items: sub.items.map(item => ({
         ...item,
+        // 5 POIN NARASI/RINGKASAN
         bulletPoints: [
           `**PBB** melalui Sekretaris Jenderal menegaskan kembali pentingnya **gencatan senjata segera** untuk mencegah **krisis kemanusiaan** yang lebih luas.`,
           `Laporan terbaru mencatat lebih dari **10.000 korban sipil** sejak konflik dimulai, dengan **40% di antaranya** adalah anak-anak.`,
           `Beberapa negara **Gulf Cooperation Council** telah menawarkan **mediasi** dan **bantuan kemanusiaan** senilai **$500 juta**.`,
           `**Amerika Serikat** menyatakan dukungan terhadap solusi diplomatik namun tetap mempertahankan **posisi strategis** di kawasan.`,
+          `Organisasi internasional memperkirakan **rekonstruksi** pasca-konflik membutuhkan waktu **minimal 10 tahun** dengan biaya mencapai **$50 miliar**.`,
         ],
+        // 5 POIN INSIGHT
         insights: [
           `Dinamika konflik menunjukkan **pergeseran signifikan** dalam keseimbangan kekuatan regional yang dapat mempengaruhi **harga energi global**.`,
           `Indonesia perlu mempersiapkan **strategi antisipasi** mengingat ketergantungan pada **impor minyak** dari kawasan tersebut.`,
           `Posisi **non-blok Indonesia** memberikan peluang untuk berperan sebagai **mediator** dalam forum internasional.`,
+          `Eskalasi konflik dapat berdampak pada **jalur perdagangan** Indonesia terutama rute ekspor ke **Eropa** dan **Timur Tengah**.`,
+          `Momentum ini dapat dimanfaatkan untuk memperkuat **diplomasi ekonomi** dan **kerjasama bilateral** dengan negara-negara terdampak.`,
         ],
       })),
     })),
