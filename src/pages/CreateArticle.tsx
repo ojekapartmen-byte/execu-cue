@@ -9,8 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X } from "lucide-react";
+import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
+import { saveAs } from "file-saver";
+import html2pdf from "html2pdf.js";
 
 type ArticleCategory = "mentor" | "investor" | "leader";
 
@@ -222,6 +225,131 @@ const CreateArticle = () => {
     }
   };
 
+  const exportToDocx = async () => {
+    if (!generatedArticle) return;
+
+    try {
+      const lines = generatedArticle.split('\n').filter(line => line.trim());
+      const children: Paragraph[] = [];
+
+      lines.forEach((line, index) => {
+        // Check if it's a title (first line or starts with #)
+        if (index === 0 || line.startsWith('#')) {
+          const cleanLine = line.replace(/^#+\s*/, '');
+          children.push(
+            new Paragraph({
+              text: cleanLine,
+              heading: HeadingLevel.HEADING_1,
+              spacing: { after: 200 }
+            })
+          );
+        } else if (line.startsWith('##')) {
+          const cleanLine = line.replace(/^#+\s*/, '');
+          children.push(
+            new Paragraph({
+              text: cleanLine,
+              heading: HeadingLevel.HEADING_2,
+              spacing: { after: 150 }
+            })
+          );
+        } else {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: line,
+                  size: 24 // 12pt
+                })
+              ],
+              spacing: { after: 200 }
+            })
+          );
+        }
+      });
+
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children
+        }]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const filename = `artikel-${topic.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '-')}.docx`;
+      saveAs(blob, filename);
+
+      toast({
+        title: "Berhasil!",
+        description: "Artikel berhasil di-export ke DOCX"
+      });
+    } catch (error) {
+      console.error('Error exporting to DOCX:', error);
+      toast({
+        title: "Gagal Export",
+        description: "Terjadi kesalahan saat export ke DOCX",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const exportToPdf = async () => {
+    if (!generatedArticle) return;
+
+    try {
+      // Create a temporary element for PDF generation
+      const element = document.createElement('div');
+      element.style.padding = '40px';
+      element.style.fontFamily = 'Arial, sans-serif';
+      element.style.maxWidth = '800px';
+      element.style.lineHeight = '1.6';
+
+      const lines = generatedArticle.split('\n');
+      lines.forEach((line, index) => {
+        if (line.trim()) {
+          const p = document.createElement('p');
+          if (index === 0 || line.startsWith('#')) {
+            p.style.fontSize = '24px';
+            p.style.fontWeight = 'bold';
+            p.style.marginBottom = '16px';
+            p.textContent = line.replace(/^#+\s*/, '');
+          } else if (line.startsWith('##')) {
+            p.style.fontSize = '18px';
+            p.style.fontWeight = 'bold';
+            p.style.marginBottom = '12px';
+            p.textContent = line.replace(/^#+\s*/, '');
+          } else {
+            p.style.fontSize = '12px';
+            p.style.marginBottom = '10px';
+            p.textContent = line;
+          }
+          element.appendChild(p);
+        }
+      });
+
+      const opt = {
+        margin: 1,
+        filename: `artikel-${topic.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+
+      toast({
+        title: "Berhasil!",
+        description: "Artikel berhasil di-export ke PDF"
+      });
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast({
+        title: "Gagal Export",
+        description: "Terjadi kesalahan saat export ke PDF",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -427,9 +555,19 @@ const CreateArticle = () => {
                     Hasil Artikel
                   </span>
                   {generatedArticle && (
-                    <Button variant="outline" size="sm" onClick={copyToClipboard}>
-                      Copy
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={copyToClipboard}>
+                        Copy
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={exportToDocx}>
+                        <Download className="h-3 w-3 mr-1" />
+                        DOCX
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={exportToPdf}>
+                        <Download className="h-3 w-3 mr-1" />
+                        PDF
+                      </Button>
+                    </div>
                   )}
                 </CardTitle>
                 <CardDescription>
