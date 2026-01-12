@@ -8,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useArticles } from "@/hooks/useArticles";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download } from "lucide-react";
+import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download, Save, History } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
@@ -31,6 +32,7 @@ interface SourceImage {
 
 const CreateArticle = () => {
   const { toast } = useToast();
+  const { saveArticle } = useArticles();
   const [topic, setTopic] = useState("");
   const [category, setCategory] = useState<ArticleCategory | "">("");
   const [sourceLinks, setSourceLinks] = useState<SourceLink[]>([
@@ -38,7 +40,9 @@ const CreateArticle = () => {
   ]);
   const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [generatedArticle, setGeneratedArticle] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addSourceLink = () => {
@@ -199,6 +203,7 @@ const CreateArticle = () => {
       }
 
       setGeneratedArticle(data.article);
+      setIsSaved(false); // Reset saved state for new article
       toast({
         title: "Berhasil!",
         description: "Artikel berhasil di-generate"
@@ -222,6 +227,33 @@ const CreateArticle = () => {
         title: "Tersalin!",
         description: "Artikel berhasil disalin ke clipboard"
       });
+    }
+  };
+
+  const handleSaveArticle = async () => {
+    if (!generatedArticle || isSaved) return;
+
+    setIsSaving(true);
+    
+    // Extract title from content
+    const lines = generatedArticle.split('\n');
+    const titleLine = lines.find(line => line.trim().startsWith('#'));
+    const title = titleLine ? titleLine.replace(/^#+\s*/, '').trim() : topic.slice(0, 100);
+
+    const validLinks = sourceLinks.filter(link => link.url.trim()).map(l => l.url);
+    
+    const result = await saveArticle({
+      title,
+      content: generatedArticle,
+      topic,
+      source_links: validLinks,
+      source_images: sourceImages.map(img => img.file.name),
+    });
+
+    setIsSaving(false);
+    
+    if (result) {
+      setIsSaved(true);
     }
   };
 
@@ -356,10 +388,18 @@ const CreateArticle = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
-          <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="h-4 w-4" />
-            Kembali ke Daily Digest
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft className="h-4 w-4" />
+              Kembali ke Daily Digest
+            </Link>
+            <Link to="/article-history">
+              <Button variant="outline" size="sm">
+                <History className="h-4 w-4 mr-2" />
+                History Artikel
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <div className="max-w-4xl mx-auto">
@@ -555,7 +595,20 @@ const CreateArticle = () => {
                     Hasil Artikel
                   </span>
                   {generatedArticle && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <Button 
+                        variant={isSaved ? "secondary" : "default"} 
+                        size="sm" 
+                        onClick={handleSaveArticle}
+                        disabled={isSaving || isSaved}
+                      >
+                        {isSaving ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Save className="h-3 w-3 mr-1" />
+                        )}
+                        {isSaved ? "Tersimpan" : "Simpan"}
+                      </Button>
                       <Button variant="outline" size="sm" onClick={copyToClipboard}>
                         Copy
                       </Button>
