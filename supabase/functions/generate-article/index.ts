@@ -29,13 +29,361 @@ CIRI-CIRI GAYA PENULISAN:
 7. Menggunakan kutipan atau referensi dari tokoh
 `;
 
+// Category mapping for api.co.id
+const categoryToApiCoIdParams = (category: string) => {
+  const mappings: Record<string, { point_of_view: string[], tone: string[] }> = {
+    mentor: { 
+      point_of_view: ["third-person"], 
+      tone: ["advisory", "inspirational"] 
+    },
+    investor: { 
+      point_of_view: ["third-person"], 
+      tone: ["analytical", "professional"] 
+    },
+    leader: { 
+      point_of_view: ["third-person"], 
+      tone: ["inspirational", "motivational"] 
+    }
+  };
+  return mappings[category] || mappings.mentor;
+};
+
+// Scrape content using Firecrawl
+async function scrapeWithFirecrawl(sourceLinks: string[], apiKey: string): Promise<string[]> {
+  const scrapedContent: string[] = [];
+  
+  for (const url of sourceLinks) {
+    try {
+      let formattedUrl = url.trim();
+      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+        formattedUrl = `https://${formattedUrl}`;
+      }
+
+      const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: formattedUrl,
+          formats: ['markdown'],
+          onlyMainContent: true,
+        }),
+      });
+
+      if (scrapeResponse.ok) {
+        const scrapeData = await scrapeResponse.json();
+        const markdown = scrapeData.data?.markdown || scrapeData.markdown;
+        if (markdown) {
+          scrapedContent.push(`=== SUMBER: ${formattedUrl} ===\n${markdown.substring(0, 3000)}`);
+          console.log(`Successfully scraped: ${formattedUrl}`);
+        }
+      } else {
+        console.error(`Failed to scrape ${formattedUrl}:`, await scrapeResponse.text());
+      }
+    } catch (scrapeError) {
+      console.error(`Error scraping ${url}:`, scrapeError);
+    }
+  }
+  
+  return scrapedContent;
+}
+
+// Analyze images using Lovable AI
+async function analyzeImagesWithAI(
+  sourceImages: { name: string; base64: string }[], 
+  apiKey: string
+): Promise<string> {
+  if (!sourceImages || sourceImages.length === 0) return '';
+  
+  const imageContents = sourceImages.map(img => ({
+    type: "image_url" as const,
+    image_url: { url: img.base64 }
+  }));
+
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-flash-preview',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'Kamu adalah asisten yang menganalisis gambar. Ekstrak semua informasi penting dari gambar termasuk teks, data, insight, dan konteks yang relevan untuk penulisan artikel. Tulis dalam Bahasa Indonesia.' 
+          },
+          { 
+            role: 'user', 
+            content: [
+              { type: "text", text: "Analisis gambar-gambar berikut dan ekstrak informasi penting untuk dijadikan bahan artikel:" },
+              ...imageContents
+            ]
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content || '';
+    }
+  } catch (error) {
+    console.error('Error analyzing images:', error);
+  }
+  
+  return '';
+}
+
+// Generate article using api.co.id
+async function generateWithApiCoId(params: {
+  topic: string;
+  category: string;
+  scrapedContent: string[];
+  imageAnalysis: string;
+  seoSettings: {
+    keywords: string[];
+    writingStyle: string[];
+    tone: string[];
+    audience: string;
+  };
+  apiKey: string;
+}): Promise<string> {
+  const { topic, category, scrapedContent, imageAnalysis, seoSettings, apiKey } = params;
+  const categoryParams = categoryToApiCoIdParams(category);
+  
+  // Build additional prompt with scraped content and image analysis
+  let additionalPrompt = ARTICLE_STYLE_EXAMPLE + "\n\n";
+  additionalPrompt += "INSTRUKSI PENTING:\n";
+  additionalPrompt += "1. Gunakan sudut pandang orang ketiga\n";
+  additionalPrompt += "2. Gaya penulisan profesional seperti artikel news\n";
+  additionalPrompt += "3. Paragraf pendek dan mudah dibaca\n";
+  additionalPrompt += "4. Minimal 500 kata, maksimal 1000 kata\n\n";
+  
+  if (scrapedContent.length > 0) {
+    additionalPrompt += "KONTEN DARI SUMBER REFERENSI (rewrite dengan gaya sendiri, jangan copy paste):\n";
+    additionalPrompt += scrapedContent.join('\n\n') + "\n\n";
+  }
+  
+  if (imageAnalysis) {
+    additionalPrompt += "ANALISIS GAMBAR SUMBER:\n" + imageAnalysis + "\n\n";
+  }
+  
+  if (seoSettings.audience) {
+    additionalPrompt += `TARGET AUDIENCE: ${seoSettings.audience}\n`;
+  }
+
+  const requestBody = {
+    title: topic,
+    keywords: seoSettings.keywords.length > 0 ? seoSettings.keywords : [topic],
+    language: 'Indonesia',
+    writing_style: seoSettings.writingStyle.length > 0 ? seoSettings.writingStyle : ['journalistic'],
+    tone: seoSettings.tone.length > 0 ? seoSettings.tone : categoryParams.tone,
+    point_of_view: categoryParams.point_of_view,
+    additional_prompt: additionalPrompt
+  };
+
+  console.log('Calling api.co.id with params:', JSON.stringify({ ...requestBody, additional_prompt: '[TRUNCATED]' }));
+
+  const response = await fetch('https://use.api.co.id/article-generator/generate', {
+    method: 'POST',
+    headers: {
+      'x-api-co-id': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('api.co.id error:', response.status, errorText);
+    throw new Error(`api.co.id error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log('api.co.id response:', JSON.stringify(data).substring(0, 500));
+  
+  // api.co.id returns HTML, convert to markdown-like format
+  let article = data.article || data.content || data.result || '';
+  
+  // Basic HTML to text conversion
+  article = article
+    .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
+    .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
+    .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
+    .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>(.*?)<\/li>/gi, '• $1\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  
+  return article;
+}
+
+// Generate article using Lovable AI (existing logic)
+async function generateWithLovableAI(params: {
+  topic: string;
+  category: string;
+  scrapedContent: string[];
+  sourceLinks: string[];
+  sourceImages: { name: string; base64?: string }[];
+  apiKey: string;
+}): Promise<string> {
+  const { topic, category, scrapedContent, sourceLinks, sourceImages, apiKey } = params;
+  
+  const categoryDescriptions: Record<string, string> = {
+    mentor: "seorang mentor/pembimbing yang berbagi pengalaman dan pembelajaran hidup, memberikan nasihat bijak berdasarkan pengalaman nyata",
+    investor: "seorang investor yang melihat peluang bisnis, strategi investasi, dan perspektif finansial yang tajam",
+    leader: "seorang pemimpin yang menginspirasi, memotivasi tim, dan memberikan visi kepemimpinan yang kuat"
+  };
+
+  const categoryContext = categoryDescriptions[category] || categoryDescriptions.mentor;
+
+  const systemPrompt = `Kamu adalah penulis artikel profesional berbahasa Indonesia dengan gaya penulisan news artikel yang berkualitas tinggi.
+
+INSTRUKSI PENTING:
+1. Tulis artikel dengan SUDUT PANDANG ORANG KETIGA - jangan gunakan "saya" atau "kita", gunakan nama tokoh atau "ia/beliau"
+2. Gaya penulisan: profesional, seperti artikel berita/news yang berkualitas
+3. Kategori artikel: ${category.toUpperCase()} - tulis dari perspektif ${categoryContext}
+4. Gunakan struktur:
+   - Judul utama yang menarik
+   - Paragraf pembuka yang kuat
+   - Beberapa sub-heading untuk setiap poin penting
+   - Paragraf pendek (2-4 kalimat per paragraf)
+   - Kesimpulan atau call-to-action di akhir
+5. REWRITE konten dari sumber dengan gaya baru, JANGAN copy paste
+6. Tambahkan insight dan perspektif yang relevan dengan kategori ${category}
+7. Minimal 500 kata, maksimal 1000 kata
+
+${ARTICLE_STYLE_EXAMPLE}
+
+JANGAN gunakan sumber contoh style di atas sebagai konten, itu hanya referensi gaya penulisan.`;
+
+  let userPrompt = `Buatkan artikel profesional tentang topik: "${topic}"
+
+Kategori: ${category.toUpperCase()}
+Perspektif penulisan: ${categoryContext}`;
+
+  if (scrapedContent.length > 0) {
+    userPrompt += `
+
+KONTEN DARI SUMBER REFERENSI (rewrite dengan gaya sendiri, jangan copy paste):
+${scrapedContent.join('\n\n')}`;
+  } else if (sourceLinks && sourceLinks.length > 0) {
+    userPrompt += `
+
+Link sumber referensi (gunakan untuk browsing): ${sourceLinks.join(', ')}
+
+Silakan browsing dan riset topik ini untuk mendapatkan informasi yang akurat, kemudian tulis artikel dengan gaya profesional.`;
+  }
+
+  // Process source images for AI vision
+  const imageContents: { type: string; image_url: { url: string } }[] = [];
+  const imageDescriptions: string[] = [];
+  
+  if (sourceImages && sourceImages.length > 0) {
+    for (const img of sourceImages) {
+      if (img.base64) {
+        imageContents.push({
+          type: "image_url",
+          image_url: { url: img.base64 }
+        });
+        imageDescriptions.push(`- Gambar: ${img.name}`);
+      }
+    }
+    
+    if (imageDescriptions.length > 0) {
+      userPrompt += `
+
+GAMBAR SUMBER YANG DIUPLOAD:
+${imageDescriptions.join('\n')}
+
+Analisis gambar-gambar yang diupload di atas. Ekstrak informasi penting, teks, data, atau insight dari gambar tersebut untuk dijadikan bahan penulisan artikel.`;
+    }
+  }
+
+  // Build message content - text only or multimodal
+  let userContent: string | { type: string; text?: string; image_url?: { url: string } }[];
+  
+  if (imageContents.length > 0) {
+    userContent = [
+      { type: "text", text: userPrompt },
+      ...imageContents
+    ];
+  } else {
+    userContent = userPrompt;
+  }
+
+  const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-3-flash-preview',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent }
+      ],
+      temperature: 0.7,
+      max_tokens: 4000,
+    }),
+  });
+
+  if (!aiResponse.ok) {
+    const errorText = await aiResponse.text();
+    console.error('AI API error:', aiResponse.status, errorText);
+    
+    if (aiResponse.status === 429) {
+      throw new Error('Rate limit exceeded. Silakan coba lagi nanti.');
+    }
+    if (aiResponse.status === 402) {
+      throw new Error('Kredit AI habis. Silakan top up kredit Lovable AI.');
+    }
+    
+    throw new Error(`AI API error: ${aiResponse.status}`);
+  }
+
+  const aiData = await aiResponse.json();
+  const article = aiData.choices?.[0]?.message?.content;
+
+  if (!article) {
+    throw new Error('No article content generated');
+  }
+
+  return article;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { topic, category, sourceLinks, sourceImages } = await req.json();
+    const { 
+      topic, 
+      category, 
+      sourceLinks, 
+      sourceImages,
+      useApiCoId = false,
+      seoSettings = {
+        keywords: [],
+        writingStyle: [],
+        tone: [],
+        audience: ''
+      }
+    } = await req.json();
 
     if (!topic || !category) {
       return new Response(
@@ -56,198 +404,119 @@ serve(async (req) => {
 
     const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
+    const API_CO_ID_KEY = Deno.env.get('API_CO_ID_KEY');
 
     // Scrape source links using Firecrawl
     let scrapedContent: string[] = [];
     
     if (FIRECRAWL_API_KEY && hasLinks) {
       console.log('Scraping source links with Firecrawl...');
-      
-      for (const url of sourceLinks) {
-        try {
-          let formattedUrl = url.trim();
-          if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-            formattedUrl = `https://${formattedUrl}`;
-          }
-
-          const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              url: formattedUrl,
-              formats: ['markdown'],
-              onlyMainContent: true,
-            }),
-          });
-
-          if (scrapeResponse.ok) {
-            const scrapeData = await scrapeResponse.json();
-            const markdown = scrapeData.data?.markdown || scrapeData.markdown;
-            if (markdown) {
-              scrapedContent.push(`=== SUMBER: ${formattedUrl} ===\n${markdown.substring(0, 3000)}`);
-              console.log(`Successfully scraped: ${formattedUrl}`);
-            }
-          } else {
-            console.error(`Failed to scrape ${formattedUrl}:`, await scrapeResponse.text());
-          }
-        } catch (scrapeError) {
-          console.error(`Error scraping ${url}:`, scrapeError);
-        }
-      }
+      scrapedContent = await scrapeWithFirecrawl(sourceLinks, FIRECRAWL_API_KEY);
     } else if (hasLinks) {
       console.log('Firecrawl not configured, proceeding with AI browsing capability');
     }
 
-    // Process source images for AI vision
-    let imageDescriptions: string[] = [];
-    const imageContents: { type: string; image_url: { url: string } }[] = [];
-    
-    if (hasImages) {
-      console.log(`Processing ${sourceImages.length} source images...`);
-      
-      for (const img of sourceImages) {
-        if (img.base64) {
-          imageContents.push({
-            type: "image_url",
-            image_url: { url: img.base64 }
+    // Route to appropriate generator
+    if (useApiCoId) {
+      // Hybrid mode: Firecrawl + api.co.id
+      if (!API_CO_ID_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'API_CO_ID_KEY is not configured. Silakan tambahkan API key dari api.co.id.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('Using api.co.id SEO Article Generator (Hybrid mode)...');
+
+      // Analyze images first using Lovable AI (if available)
+      let imageAnalysis = '';
+      if (hasImages && LOVABLE_API_KEY) {
+        console.log('Analyzing images with Lovable AI...');
+        imageAnalysis = await analyzeImagesWithAI(sourceImages, LOVABLE_API_KEY);
+      }
+
+      try {
+        const article = await generateWithApiCoId({
+          topic,
+          category,
+          scrapedContent,
+          imageAnalysis,
+          seoSettings,
+          apiKey: API_CO_ID_KEY
+        });
+
+        console.log('Article generated successfully with api.co.id');
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            article,
+            generator: 'api.co.id',
+            sourceCount: scrapedContent.length 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (apiCoIdError) {
+        console.error('api.co.id failed, falling back to Lovable AI:', apiCoIdError);
+        
+        // Fallback to Lovable AI if api.co.id fails
+        if (LOVABLE_API_KEY) {
+          console.log('Falling back to Lovable AI...');
+          const article = await generateWithLovableAI({
+            topic,
+            category,
+            scrapedContent,
+            sourceLinks,
+            sourceImages,
+            apiKey: LOVABLE_API_KEY
           });
-          imageDescriptions.push(`- Gambar: ${img.name}`);
+
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              article,
+              generator: 'lovable-ai (fallback)',
+              sourceCount: scrapedContent.length,
+              warning: 'api.co.id gagal, menggunakan Lovable AI sebagai fallback'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
+        
+        throw apiCoIdError;
       }
-    }
-
-    // Category descriptions for AI prompt
-    const categoryDescriptions = {
-      mentor: "seorang mentor/pembimbing yang berbagi pengalaman dan pembelajaran hidup, memberikan nasihat bijak berdasarkan pengalaman nyata",
-      investor: "seorang investor yang melihat peluang bisnis, strategi investasi, dan perspektif finansial yang tajam",
-      leader: "seorang pemimpin yang menginspirasi, memotivasi tim, dan memberikan visi kepemimpinan yang kuat"
-    };
-
-    const categoryContext = categoryDescriptions[category as keyof typeof categoryDescriptions] || categoryDescriptions.mentor;
-
-    // Build the prompt
-    const systemPrompt = `Kamu adalah penulis artikel profesional berbahasa Indonesia dengan gaya penulisan news artikel yang berkualitas tinggi.
-
-INSTRUKSI PENTING:
-1. Tulis artikel dengan SUDUT PANDANG ORANG KETIGA - jangan gunakan "saya" atau "kita", gunakan nama tokoh atau "ia/beliau"
-2. Gaya penulisan: profesional, seperti artikel berita/news yang berkualitas
-3. Kategori artikel: ${category.toUpperCase()} - tulis dari perspektif ${categoryContext}
-4. Gunakan struktur:
-   - Judul utama yang menarik
-   - Paragraf pembuka yang kuat
-   - Beberapa sub-heading untuk setiap poin penting
-   - Paragraf pendek (2-4 kalimat per paragraf)
-   - Kesimpulan atau call-to-action di akhir
-5. REWRITE konten dari sumber dengan gaya baru, JANGAN copy paste
-6. Tambahkan insight dan perspektif yang relevan dengan kategori ${category}
-7. Minimal 500 kata, maksimal 1000 kata
-
-${ARTICLE_STYLE_EXAMPLE}
-
-JANGAN gunakan sumber contoh style di atas sebagai konten, itu hanya referensi gaya penulisan.`;
-
-    let userPrompt = `Buatkan artikel profesional tentang topik: "${topic}"
-
-Kategori: ${category.toUpperCase()}
-Perspektif penulisan: ${categoryContext}`;
-
-    if (scrapedContent.length > 0) {
-      userPrompt += `
-
-KONTEN DARI SUMBER REFERENSI (rewrite dengan gaya sendiri, jangan copy paste):
-${scrapedContent.join('\n\n')}`;
-    } else if (hasLinks) {
-      userPrompt += `
-
-Link sumber referensi (gunakan untuk browsing): ${sourceLinks.join(', ')}
-
-Silakan browsing dan riset topik ini untuk mendapatkan informasi yang akurat, kemudian tulis artikel dengan gaya profesional.`;
-    }
-
-    if (hasImages) {
-      userPrompt += `
-
-GAMBAR SUMBER YANG DIUPLOAD:
-${imageDescriptions.join('\n')}
-
-Analisis gambar-gambar yang diupload di atas. Ekstrak informasi penting, teks, data, atau insight dari gambar tersebut untuk dijadikan bahan penulisan artikel.`;
-    }
-
-    console.log('Generating article with AI...');
-
-    // Build message content - text only or multimodal
-    let userContent: string | { type: string; text?: string; image_url?: { url: string } }[];
-    
-    if (imageContents.length > 0) {
-      userContent = [
-        { type: "text", text: userPrompt },
-        ...imageContents
-      ];
     } else {
-      userContent = userPrompt;
-    }
-
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent }
-        ],
-        temperature: 0.7,
-        max_tokens: 4000,
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('AI API error:', aiResponse.status, errorText);
-      
-      if (aiResponse.status === 429) {
+      // Original mode: Lovable AI
+      if (!LOVABLE_API_KEY) {
         return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Silakan coba lagi nanti.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'LOVABLE_API_KEY is not configured' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (aiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'Kredit AI habis. Silakan top up kredit Lovable AI.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      throw new Error(`AI API error: ${aiResponse.status}`);
+
+      console.log('Using Lovable AI for article generation...');
+
+      const article = await generateWithLovableAI({
+        topic,
+        category,
+        scrapedContent,
+        sourceLinks,
+        sourceImages,
+        apiKey: LOVABLE_API_KEY
+      });
+
+      console.log('Article generated successfully with Lovable AI');
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          article,
+          generator: 'lovable-ai',
+          sourceCount: scrapedContent.length 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
-    const aiData = await aiResponse.json();
-    const article = aiData.choices?.[0]?.message?.content;
-
-    if (!article) {
-      throw new Error('No article content generated');
-    }
-
-    console.log('Article generated successfully');
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        article,
-        sourceCount: scrapedContent.length 
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
 
   } catch (error) {
     console.error('Error generating article:', error);

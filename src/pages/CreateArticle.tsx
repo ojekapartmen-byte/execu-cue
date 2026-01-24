@@ -7,10 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useArticles } from "@/hooks/useArticles";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download, Save, History } from "lucide-react";
+import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download, Save, History, Search, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
@@ -30,6 +31,13 @@ interface SourceImage {
   base64?: string;
 }
 
+interface SEOSettings {
+  keywords: string[];
+  writingStyle: string[];
+  tone: string[];
+  audience: string;
+}
+
 const CreateArticle = () => {
   const { toast } = useToast();
   const { saveArticle } = useArticles();
@@ -43,7 +51,15 @@ const CreateArticle = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [generatedArticle, setGeneratedArticle] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [generatorUsed, setGeneratorUsed] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // SEO Settings for api.co.id
+  const [useApiCoId, setUseApiCoId] = useState(false);
+  const [keywordsInput, setKeywordsInput] = useState("");
+  const [writingStyle, setWritingStyle] = useState<string>("");
+  const [tone, setTone] = useState<string>("");
+  const [audience, setAudience] = useState("");
 
   const addSourceLink = () => {
     setSourceLinks([...sourceLinks, { id: crypto.randomUUID(), url: "" }]);
@@ -179,6 +195,7 @@ const CreateArticle = () => {
 
     setIsGenerating(true);
     setGeneratedArticle(null);
+    setGeneratorUsed(null);
 
     try {
       // Prepare image data for API
@@ -187,12 +204,28 @@ const CreateArticle = () => {
         base64: img.base64
       }));
 
+      // Parse keywords from comma-separated input
+      const keywords = keywordsInput
+        .split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+
+      // Build SEO settings
+      const seoSettings: SEOSettings = {
+        keywords,
+        writingStyle: writingStyle ? [writingStyle] : [],
+        tone: tone ? [tone] : [],
+        audience
+      };
+
       const { data, error } = await supabase.functions.invoke('generate-article', {
         body: {
           topic,
           category,
           sourceLinks: validLinks.map(l => l.url),
-          sourceImages: imageData
+          sourceImages: imageData,
+          useApiCoId,
+          seoSettings
         }
       });
 
@@ -203,10 +236,17 @@ const CreateArticle = () => {
       }
 
       setGeneratedArticle(data.article);
+      setGeneratorUsed(data.generator);
       setIsSaved(false); // Reset saved state for new article
+      
+      let toastMessage = "Artikel berhasil di-generate";
+      if (data.warning) {
+        toastMessage += ` (${data.warning})`;
+      }
+      
       toast({
         title: "Berhasil!",
-        description: "Artikel berhasil di-generate"
+        description: toastMessage
       });
     } catch (error) {
       console.error('Error generating article:', error);
@@ -423,6 +463,29 @@ const CreateArticle = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Generator Toggle */}
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${useApiCoId ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
+                      {useApiCoId ? <Search className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">
+                        {useApiCoId ? 'api.co.id SEO Generator' : 'Lovable AI Generator'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {useApiCoId 
+                          ? 'Optimasi SEO untuk search engine Indonesia' 
+                          : 'AI cepat dengan kemampuan multimodal'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={useApiCoId}
+                    onCheckedChange={setUseApiCoId}
+                  />
+                </div>
+
                 {/* Topic Input */}
                 <div className="space-y-2">
                   <Label htmlFor="topic">Ide / Topik Artikel</Label>
@@ -445,17 +508,17 @@ const CreateArticle = () => {
                     <SelectContent>
                       <SelectItem value="mentor">
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700">Mentor</Badge>
+                          <Badge variant="secondary" className="bg-primary/20 text-primary">Mentor</Badge>
                         </div>
                       </SelectItem>
                       <SelectItem value="investor">
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="bg-green-100 text-green-700">Investor</Badge>
+                          <Badge variant="secondary" className="bg-accent text-accent-foreground">Investor</Badge>
                         </div>
                       </SelectItem>
                       <SelectItem value="leader">
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="bg-purple-100 text-purple-700">Leader</Badge>
+                          <Badge variant="secondary" className="bg-secondary text-secondary-foreground">Leader</Badge>
                         </div>
                       </SelectItem>
                     </SelectContent>
@@ -466,6 +529,71 @@ const CreateArticle = () => {
                     </p>
                   )}
                 </div>
+
+                {/* SEO Settings - Only show when api.co.id is selected */}
+                {useApiCoId && (
+                  <div className="space-y-4 p-4 bg-muted/50 rounded-lg border border-border">
+                    <div className="flex items-center gap-2 text-foreground">
+                      <Search className="h-4 w-4" />
+                      <span className="font-medium text-sm">SEO Settings</span>
+                    </div>
+                    
+                    {/* Keywords */}
+                    <div className="space-y-2">
+                      <Label htmlFor="keywords" className="text-sm">Keywords (pisahkan dengan koma)</Label>
+                      <Input
+                        id="keywords"
+                        placeholder="leadership, bisnis, motivasi"
+                        value={keywordsInput}
+                        onChange={(e) => setKeywordsInput(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Writing Style */}
+                    <div className="space-y-2">
+                      <Label className="text-sm">Gaya Penulisan</Label>
+                      <Select value={writingStyle} onValueChange={setWritingStyle}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih gaya penulisan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="journalistic">Jurnalistik</SelectItem>
+                          <SelectItem value="blog-friendly">Blog Friendly</SelectItem>
+                          <SelectItem value="academic">Akademis</SelectItem>
+                          <SelectItem value="conversational">Conversational</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Tone */}
+                    <div className="space-y-2">
+                      <Label className="text-sm">Tone</Label>
+                      <Select value={tone} onValueChange={setTone}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih tone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="professional">Professional</SelectItem>
+                          <SelectItem value="friendly">Friendly</SelectItem>
+                          <SelectItem value="formal">Formal</SelectItem>
+                          <SelectItem value="inspirational">Inspirational</SelectItem>
+                          <SelectItem value="analytical">Analytical</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Target Audience */}
+                    <div className="space-y-2">
+                      <Label htmlFor="audience" className="text-sm">Target Audience (opsional)</Label>
+                      <Input
+                        id="audience"
+                        placeholder="Contoh: Pengusaha muda Indonesia"
+                        value={audience}
+                        onChange={(e) => setAudience(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Source Links */}
                 <div className="space-y-3">
@@ -578,8 +706,8 @@ const CreateArticle = () => {
                     </>
                   ) : (
                     <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Generate Artikel
+                      {useApiCoId ? <Search className="h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                      Generate Artikel {useApiCoId ? '(SEO)' : ''}
                     </>
                   )}
                 </Button>
@@ -593,6 +721,11 @@ const CreateArticle = () => {
                   <span className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-primary" />
                     Hasil Artikel
+                    {generatorUsed && (
+                      <Badge variant="outline" className="ml-2 text-xs font-normal">
+                        {generatorUsed}
+                      </Badge>
+                    )}
                   </span>
                   {generatedArticle && (
                     <div className="flex gap-2 flex-wrap">
@@ -632,7 +765,11 @@ const CreateArticle = () => {
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <Loader2 className="h-8 w-8 animate-spin mb-4" />
                     <p>Sedang scraping sumber dan menulis artikel...</p>
-                    <p className="text-xs mt-1">Proses ini membutuhkan waktu beberapa saat</p>
+                    <p className="text-xs mt-1">
+                      {useApiCoId 
+                        ? 'Menggunakan api.co.id SEO Generator' 
+                        : 'Menggunakan Lovable AI Generator'}
+                    </p>
                   </div>
                 ) : generatedArticle ? (
                   <div className="prose prose-sm max-w-none dark:prose-invert">
