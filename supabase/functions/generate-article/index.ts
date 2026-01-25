@@ -150,6 +150,9 @@ async function generateWithApiCoId(params: {
     keywords: string[];
     writingStyle: string[];
     tone: string[];
+    searchIntent: string;
+    creativityLevel: string;
+    audience: string;
   };
   apiKey: string;
 }): Promise<string> {
@@ -174,13 +177,17 @@ async function generateWithApiCoId(params: {
   }
 
   const requestBody = {
-    title: topic,
-    keywords: seoSettings.keywords.length > 0 ? seoSettings.keywords : [topic],
-    language: 'Indonesia',
-    writing_style: seoSettings.writingStyle.length > 0 ? seoSettings.writingStyle : ['journalistic'],
-    tone: seoSettings.tone.length > 0 ? seoSettings.tone : categoryParams.tone,
-    point_of_view: categoryParams.point_of_view,
-    additional_prompt: additionalPrompt
+    Title: topic,
+    Keywords: seoSettings.keywords.length > 0 ? seoSettings.keywords : [topic],
+    AllowRelatedKeyword: true,
+    Language: 'Indonesia',
+    WritingStyle: seoSettings.writingStyle.length > 0 ? seoSettings.writingStyle : ['journalistic'],
+    Tone: seoSettings.tone.length > 0 ? seoSettings.tone : categoryParams.tone,
+    SearchIntent: [seoSettings.searchIntent || 'informational'],
+    PointOfView: categoryParams.point_of_view,
+    CreativityLevel: [seoSettings.creativityLevel || 'balanced'],
+    Audience: seoSettings.audience || 'general audience',
+    AdditionalPrompt: additionalPrompt
   };
 
   console.log('Calling api.co.id with params:', JSON.stringify({ ...requestBody, additional_prompt: '[TRUNCATED]' }));
@@ -375,7 +382,10 @@ serve(async (req) => {
       seoSettings = {
         keywords: [],
         writingStyle: [],
-        tone: []
+        tone: [],
+        searchIntent: 'informational',
+        creativityLevel: 'balanced',
+        audience: 'general audience'
       }
     } = await req.json();
 
