@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useArticles } from "@/hooks/useArticles";
+import { useSEO, SEO_CONFIG } from "@/hooks/useSEO";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download, Save, History } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -51,6 +52,8 @@ const TONES = [
 ];
 
 const CreateArticle = () => {
+  // SEO Configuration
+  useSEO(SEO_CONFIG.createArticle);
   const { toast } = useToast();
   const { saveArticle } = useArticles();
   const [topic, setTopic] = useState("");
@@ -422,29 +425,29 @@ const CreateArticle = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-6">
+      <main className="container mx-auto px-4 py-8" role="main">
+        <nav className="mb-6" aria-label="Breadcrumb">
           <div className="flex items-center justify-between">
             <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Kembali ke Daily Digest
             </Link>
             <Link to="/article-history">
               <Button variant="outline" size="sm">
-                <History className="h-4 w-4 mr-2" />
+                <History className="h-4 w-4 mr-2" aria-hidden="true" />
                 History Artikel
               </Button>
             </Link>
           </div>
-        </div>
+        </nav>
 
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
+        <article className="max-w-4xl mx-auto">
+          <header className="text-center mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">Create Article</h1>
             <p className="text-muted-foreground">
               Generate artikel profesional dengan sudut pandang orang ketiga
             </p>
-          </div>
+          </header>
 
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Input Form */}
@@ -760,10 +763,10 @@ const CreateArticle = () => {
               </CardContent>
             </Card>
           </div>
-        </div>
+        </article>
       </main>
 
-      <footer className="border-t border-border py-6 mt-12">
+      <footer className="border-t border-border py-6 mt-12" role="contentinfo">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>© 2025 AI Daily Digest • Executive Intelligence Tool</p>
         </div>

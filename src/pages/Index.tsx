@@ -5,8 +5,12 @@ import { InputStep } from "@/components/InputStep";
 import { TocStep } from "@/components/TocStep";
 import { ReportStep } from "@/components/ReportStep";
 import { WorkflowStep, InputLink, DigestCategory } from "@/types/digest";
+import { useSEO, SEO_CONFIG } from "@/hooks/useSEO";
 
 const Index = () => {
+  // SEO Configuration
+  useSEO(SEO_CONFIG.index);
+
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('input');
   const [links, setLinks] = useState<InputLink[]>([]);
   const [pdfFile, setPdfFile] = useState<File | undefined>();
@@ -34,21 +38,23 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
-        <StepIndicator 
-          currentStep={currentStep} 
-          onStepClick={(step) => {
-            // Only allow going back to previous steps
-            const steps: WorkflowStep[] = ['input', 'toc', 'report'];
-            const currentIndex = steps.indexOf(currentStep);
-            const targetIndex = steps.indexOf(step);
-            if (targetIndex < currentIndex) {
-              setCurrentStep(step);
-            }
-          }}
-        />
+      <main className="container mx-auto px-4 py-8" role="main">
+        <section aria-label="Workflow progress">
+          <StepIndicator 
+            currentStep={currentStep} 
+            onStepClick={(step) => {
+              // Only allow going back to previous steps
+              const steps: WorkflowStep[] = ['input', 'toc', 'report'];
+              const currentIndex = steps.indexOf(currentStep);
+              const targetIndex = steps.indexOf(step);
+              if (targetIndex < currentIndex) {
+                setCurrentStep(step);
+              }
+            }}
+          />
+        </section>
         
-        <div className="mt-8">
+        <section className="mt-8" aria-label="Digest creation steps">
           {currentStep === 'input' && (
             <InputStep onNext={handleInputNext} />
           )}
@@ -69,10 +75,10 @@ const Index = () => {
               onReset={handleReset}
             />
           )}
-        </div>
+        </section>
       </main>
 
-      <footer className="border-t border-border py-6 mt-12">
+      <footer className="border-t border-border py-6 mt-12" role="contentinfo">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>© 2025 AI Daily Digest • Executive Intelligence Tool</p>
         </div>
