@@ -18,8 +18,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
+import { useSEO, SEO_CONFIG } from "@/hooks/useSEO";
 
 const ArticleHistory = () => {
+  // SEO Configuration
+  useSEO(SEO_CONFIG.articleHistory);
+
   const { articles, isLoading, deleteArticle } = useArticles();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -41,21 +45,21 @@ const ArticleHistory = () => {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-6">
+      <main className="container mx-auto px-4 py-8" role="main">
+        <nav className="mb-6" aria-label="Breadcrumb">
           <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
             Kembali ke Daily Digest
           </Link>
-        </div>
+        </nav>
 
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
+        <section className="max-w-4xl mx-auto" aria-label="Article history list">
+          <header className="text-center mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">History Artikel</h1>
             <p className="text-muted-foreground">
               Semua artikel yang telah di-generate tersimpan di sini
             </p>
-          </div>
+          </header>
 
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12">
@@ -155,10 +159,10 @@ const ArticleHistory = () => {
               ))}
             </div>
           )}
-        </div>
+        </section>
       </main>
 
-      <footer className="border-t border-border py-6 mt-12">
+      <footer className="border-t border-border py-6 mt-12" role="contentinfo">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>© 2025 AI Daily Digest • Executive Intelligence Tool</p>
         </div>
