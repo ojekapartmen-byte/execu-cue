@@ -29,25 +29,6 @@ CIRI-CIRI GAYA PENULISAN:
 7. Menggunakan kutipan atau referensi dari tokoh
 `;
 
-// Category mapping for api.co.id
-const categoryToApiCoIdParams = (category: string) => {
-  const mappings: Record<string, { point_of_view: string[], tone: string[] }> = {
-    mentor: { 
-      point_of_view: ["third-person"], 
-      tone: ["advisory", "inspirational"] 
-    },
-    investor: { 
-      point_of_view: ["third-person"], 
-      tone: ["analytical", "professional"] 
-    },
-    leader: { 
-      point_of_view: ["third-person"], 
-      tone: ["inspirational", "motivational"] 
-    }
-  };
-  return mappings[category] || mappings.mentor;
-};
-
 // Scrape content using Firecrawl
 async function scrapeWithFirecrawl(sourceLinks: string[], apiKey: string): Promise<string[]> {
   const scrapedContent: string[] = [];
@@ -90,149 +71,7 @@ async function scrapeWithFirecrawl(sourceLinks: string[], apiKey: string): Promi
   return scrapedContent;
 }
 
-// Analyze images using Lovable AI
-async function analyzeImagesWithAI(
-  sourceImages: { name: string; base64: string }[], 
-  apiKey: string
-): Promise<string> {
-  if (!sourceImages || sourceImages.length === 0) return '';
-  
-  const imageContents = sourceImages.map(img => ({
-    type: "image_url" as const,
-    image_url: { url: img.base64 }
-  }));
-
-  try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'Kamu adalah asisten yang menganalisis gambar. Ekstrak semua informasi penting dari gambar termasuk teks, data, insight, dan konteks yang relevan untuk penulisan artikel. Tulis dalam Bahasa Indonesia.' 
-          },
-          { 
-            role: 'user', 
-            content: [
-              { type: "text", text: "Analisis gambar-gambar berikut dan ekstrak informasi penting untuk dijadikan bahan artikel:" },
-              ...imageContents
-            ]
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 2000,
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.choices?.[0]?.message?.content || '';
-    }
-  } catch (error) {
-    console.error('Error analyzing images:', error);
-  }
-  
-  return '';
-}
-
-// Generate article using api.co.id
-async function generateWithApiCoId(params: {
-  topic: string;
-  category: string;
-  scrapedContent: string[];
-  imageAnalysis: string;
-  seoSettings: {
-    keywords: string[];
-    writingStyle: string[];
-    tone: string[];
-    searchIntent: string;
-    creativityLevel: string;
-    audience: string;
-  };
-  apiKey: string;
-}): Promise<string> {
-  const { topic, category, scrapedContent, imageAnalysis, seoSettings, apiKey } = params;
-  const categoryParams = categoryToApiCoIdParams(category);
-  
-  // Build additional prompt with scraped content and image analysis
-  let additionalPrompt = ARTICLE_STYLE_EXAMPLE + "\n\n";
-  additionalPrompt += "INSTRUKSI PENTING:\n";
-  additionalPrompt += "1. Gunakan sudut pandang orang ketiga\n";
-  additionalPrompt += "2. Gaya penulisan profesional seperti artikel news\n";
-  additionalPrompt += "3. Paragraf pendek dan mudah dibaca\n";
-  additionalPrompt += "4. Minimal 500 kata, maksimal 1000 kata\n\n";
-  
-  if (scrapedContent.length > 0) {
-    additionalPrompt += "KONTEN DARI SUMBER REFERENSI (rewrite dengan gaya sendiri, jangan copy paste):\n";
-    additionalPrompt += scrapedContent.join('\n\n') + "\n\n";
-  }
-  
-  if (imageAnalysis) {
-    additionalPrompt += "ANALISIS GAMBAR SUMBER:\n" + imageAnalysis + "\n\n";
-  }
-
-  const requestBody = {
-    Title: topic,
-    Keywords: seoSettings.keywords.length > 0 ? seoSettings.keywords : [topic],
-    AllowRelatedKeyword: true,
-    Language: 'Indonesia',
-    WritingStyle: seoSettings.writingStyle.length > 0 ? seoSettings.writingStyle : ['journalistic'],
-    Tone: seoSettings.tone.length > 0 ? seoSettings.tone : categoryParams.tone,
-    SearchIntent: [seoSettings.searchIntent || 'informational'],
-    PointOfView: categoryParams.point_of_view,
-    CreativityLevel: [seoSettings.creativityLevel || 'balanced'],
-    Audience: seoSettings.audience || 'general audience',
-    AdditionalPrompt: additionalPrompt
-  };
-
-  console.log('Calling api.co.id with params:', JSON.stringify({ ...requestBody, additional_prompt: '[TRUNCATED]' }));
-
-  const response = await fetch('https://use.api.co.id/article-generator/generate', {
-    method: 'POST',
-    headers: {
-      'x-api-co-id': apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('api.co.id error:', response.status, errorText);
-    throw new Error(`api.co.id error: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  console.log('api.co.id response:', JSON.stringify(data).substring(0, 500));
-  
-  // api.co.id returns HTML, convert to markdown-like format
-  let article = data.article || data.content || data.result || '';
-  
-  // Basic HTML to text conversion
-  article = article
-    .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
-    .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
-    .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
-    .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<li[^>]*>(.*?)<\/li>/gi, '• $1\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-  
-  return article;
-}
-
-// Generate article using Lovable AI (existing logic)
+// Generate article using Lovable AI
 async function generateWithLovableAI(params: {
   topic: string;
   category: string;
@@ -377,16 +216,7 @@ serve(async (req) => {
       topic, 
       category, 
       sourceLinks, 
-      sourceImages,
-      useApiCoId = false,
-      seoSettings = {
-        keywords: [],
-        writingStyle: [],
-        tone: [],
-        searchIntent: 'informational',
-        creativityLevel: 'balanced',
-        audience: 'general audience'
-      }
+      sourceImages
     } = await req.json();
 
     if (!topic || !category) {
@@ -408,7 +238,13 @@ serve(async (req) => {
 
     const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    const API_CO_ID_KEY = Deno.env.get('API_CO_ID_KEY');
+
+    if (!LOVABLE_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: 'LOVABLE_API_KEY is not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Scrape source links using Firecrawl
     let scrapedContent: string[] = [];
@@ -420,107 +256,28 @@ serve(async (req) => {
       console.log('Firecrawl not configured, proceeding with AI browsing capability');
     }
 
-    // Route to appropriate generator
-    if (useApiCoId) {
-      // Hybrid mode: Firecrawl + api.co.id
-      if (!API_CO_ID_KEY) {
-        return new Response(
-          JSON.stringify({ error: 'API_CO_ID_KEY is not configured. Silakan tambahkan API key dari api.co.id.' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+    console.log('Using Lovable AI for article generation...');
 
-      console.log('Using api.co.id SEO Article Generator (Hybrid mode)...');
+    const article = await generateWithLovableAI({
+      topic,
+      category,
+      scrapedContent,
+      sourceLinks,
+      sourceImages,
+      apiKey: LOVABLE_API_KEY
+    });
 
-      // Analyze images first using Lovable AI (if available)
-      let imageAnalysis = '';
-      if (hasImages && LOVABLE_API_KEY) {
-        console.log('Analyzing images with Lovable AI...');
-        imageAnalysis = await analyzeImagesWithAI(sourceImages, LOVABLE_API_KEY);
-      }
+    console.log('Article generated successfully with Lovable AI');
 
-      try {
-        const article = await generateWithApiCoId({
-          topic,
-          category,
-          scrapedContent,
-          imageAnalysis,
-          seoSettings,
-          apiKey: API_CO_ID_KEY
-        });
-
-        console.log('Article generated successfully with api.co.id');
-
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            article,
-            generator: 'api.co.id',
-            sourceCount: scrapedContent.length 
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } catch (apiCoIdError) {
-        console.error('api.co.id failed, falling back to Lovable AI:', apiCoIdError);
-        
-        // Fallback to Lovable AI if api.co.id fails
-        if (LOVABLE_API_KEY) {
-          console.log('Falling back to Lovable AI...');
-          const article = await generateWithLovableAI({
-            topic,
-            category,
-            scrapedContent,
-            sourceLinks,
-            sourceImages,
-            apiKey: LOVABLE_API_KEY
-          });
-
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              article,
-              generator: 'lovable-ai (fallback)',
-              sourceCount: scrapedContent.length,
-              warning: 'api.co.id gagal, menggunakan Lovable AI sebagai fallback'
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        throw apiCoIdError;
-      }
-    } else {
-      // Original mode: Lovable AI
-      if (!LOVABLE_API_KEY) {
-        return new Response(
-          JSON.stringify({ error: 'LOVABLE_API_KEY is not configured' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      console.log('Using Lovable AI for article generation...');
-
-      const article = await generateWithLovableAI({
-        topic,
-        category,
-        scrapedContent,
-        sourceLinks,
-        sourceImages,
-        apiKey: LOVABLE_API_KEY
-      });
-
-      console.log('Article generated successfully with Lovable AI');
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          article,
-          generator: 'lovable-ai',
-          sourceCount: scrapedContent.length 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        article,
+        generator: 'lovable-ai',
+        sourceCount: scrapedContent.length 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error('Error generating article:', error);
