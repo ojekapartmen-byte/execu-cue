@@ -7,11 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useArticles } from "@/hooks/useArticles";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download, Save, History, Search, Zap } from "lucide-react";
+import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download, Save, History } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
@@ -31,14 +30,6 @@ interface SourceImage {
   base64?: string;
 }
 
-interface SEOSettings {
-  keywords: string[];
-  writingStyle: string[];
-  tone: string[];
-  searchIntent: string;
-  creativityLevel: string;
-  audience: string;
-}
 
 const CreateArticle = () => {
   const { toast } = useToast();
@@ -56,14 +47,6 @@ const CreateArticle = () => {
   const [generatorUsed, setGeneratorUsed] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // SEO Settings for api.co.id
-  const [useApiCoId, setUseApiCoId] = useState(false);
-  const [keywordsInput, setKeywordsInput] = useState("");
-  const [writingStyle, setWritingStyle] = useState<string>("journalistic");
-  const [tone, setTone] = useState<string>("professional");
-  const [searchIntent, setSearchIntent] = useState<string>("informational");
-  const [creativityLevel, setCreativityLevel] = useState<string>("balanced");
-  const [audience, setAudience] = useState<string>("");
 
   const addSourceLink = () => {
     setSourceLinks([...sourceLinks, { id: crypto.randomUUID(), url: "" }]);
@@ -208,30 +191,12 @@ const CreateArticle = () => {
         base64: img.base64
       }));
 
-      // Parse keywords from comma-separated input
-      const keywords = keywordsInput
-        .split(',')
-        .map(k => k.trim())
-        .filter(k => k.length > 0);
-
-      // Build SEO settings
-      const seoSettings: SEOSettings = {
-        keywords,
-        writingStyle: writingStyle ? [writingStyle] : ['journalistic'],
-        tone: tone ? [tone] : ['professional'],
-        searchIntent: searchIntent || 'informational',
-        creativityLevel: creativityLevel || 'balanced',
-        audience: audience || 'general audience'
-      };
-
       const { data, error } = await supabase.functions.invoke('generate-article', {
         body: {
           topic,
           category,
           sourceLinks: validLinks.map(l => l.url),
-          sourceImages: imageData,
-          useApiCoId,
-          seoSettings
+          sourceImages: imageData
         }
       });
 
@@ -469,28 +434,6 @@ const CreateArticle = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Generator Toggle */}
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${useApiCoId ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
-                      {useApiCoId ? <Search className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">
-                        {useApiCoId ? 'api.co.id SEO Generator' : 'Lovable AI Generator'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {useApiCoId 
-                          ? 'Optimasi SEO untuk search engine Indonesia' 
-                          : 'AI cepat dengan kemampuan multimodal'}
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={useApiCoId}
-                    onCheckedChange={setUseApiCoId}
-                  />
-                </div>
 
                 {/* Topic Input */}
                 <div className="space-y-2">
@@ -536,114 +479,6 @@ const CreateArticle = () => {
                   )}
                 </div>
 
-                {/* SEO Settings - Only show when api.co.id is selected */}
-                {useApiCoId && (
-                  <div className="space-y-4 p-4 bg-muted/50 rounded-lg border border-border">
-                    <div className="flex items-center gap-2 text-foreground">
-                      <Search className="h-4 w-4" />
-                      <span className="font-medium text-sm">SEO Settings</span>
-                    </div>
-                    
-                    {/* Keywords */}
-                    <div className="space-y-2">
-                      <Label htmlFor="keywords" className="text-sm">Keywords (pisahkan dengan koma)</Label>
-                      <Input
-                        id="keywords"
-                        placeholder="leadership, bisnis, motivasi"
-                        value={keywordsInput}
-                        onChange={(e) => setKeywordsInput(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Keywords untuk optimasi SEO artikel
-                      </p>
-                    </div>
-
-                    {/* Writing Style */}
-                    <div className="space-y-2">
-                      <Label className="text-sm">Writing Style</Label>
-                      <Select value={writingStyle} onValueChange={setWritingStyle}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih gaya penulisan" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="journalistic">Journalistic</SelectItem>
-                          <SelectItem value="blog-friendly">Blog Friendly</SelectItem>
-                          <SelectItem value="academic">Academic</SelectItem>
-                          <SelectItem value="conversational">Conversational</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Tone */}
-                    <div className="space-y-2">
-                      <Label className="text-sm">Tone</Label>
-                      <Select value={tone} onValueChange={setTone}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih tone" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="professional">Professional</SelectItem>
-                          <SelectItem value="friendly">Friendly</SelectItem>
-                          <SelectItem value="formal">Formal</SelectItem>
-                          <SelectItem value="inspirational">Inspirational</SelectItem>
-                          <SelectItem value="analytical">Analytical</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Search Intent - REQUIRED */}
-                    <div className="space-y-2">
-                      <Label className="text-sm">Search Intent <span className="text-red-500">*</span></Label>
-                      <Select value={searchIntent} onValueChange={setSearchIntent}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih search intent" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="informational">Informational</SelectItem>
-                          <SelectItem value="transactional">Transactional</SelectItem>
-                          <SelectItem value="navigational">Navigational</SelectItem>
-                          <SelectItem value="commercial">Commercial Investigation</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Tujuan pencarian user yang ingin dijawab artikel
-                      </p>
-                    </div>
-
-                    {/* Creativity Level - REQUIRED */}
-                    <div className="space-y-2">
-                      <Label className="text-sm">Creativity Level <span className="text-red-500">*</span></Label>
-                      <Select value={creativityLevel} onValueChange={setCreativityLevel}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih creativity level" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low (Factual)</SelectItem>
-                          <SelectItem value="balanced">Balanced</SelectItem>
-                          <SelectItem value="high">High (Creative)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Audience - REQUIRED */}
-                    <div className="space-y-2">
-                      <Label htmlFor="audience" className="text-sm">Target Audience <span className="text-red-500">*</span></Label>
-                      <Input
-                        id="audience"
-                        placeholder="Contoh: Pengusaha muda Indonesia, Investor pemula"
-                        value={audience}
-                        onChange={(e) => setAudience(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Siapa target pembaca artikel ini
-                      </p>
-                    </div>
-
-                    <p className="text-xs text-muted-foreground">
-                      Point of View akan ditentukan otomatis berdasarkan kategori (Mentor/Investor/Leader)
-                    </p>
-                  </div>
-                )}
 
                 {/* Source Links */}
                 <div className="space-y-3">
@@ -756,8 +591,8 @@ const CreateArticle = () => {
                     </>
                   ) : (
                     <>
-                      {useApiCoId ? <Search className="h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                      Generate Artikel {useApiCoId ? '(SEO)' : ''}
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generate Artikel
                     </>
                   )}
                 </Button>
@@ -815,11 +650,7 @@ const CreateArticle = () => {
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <Loader2 className="h-8 w-8 animate-spin mb-4" />
                     <p>Sedang scraping sumber dan menulis artikel...</p>
-                    <p className="text-xs mt-1">
-                      {useApiCoId 
-                        ? 'Menggunakan api.co.id SEO Generator' 
-                        : 'Menggunakan Lovable AI Generator'}
-                    </p>
+                    <p className="text-xs mt-1">Menggunakan Lovable AI Generator</p>
                   </div>
                 ) : generatedArticle ? (
                   <div className="prose prose-sm max-w-none dark:prose-invert">
