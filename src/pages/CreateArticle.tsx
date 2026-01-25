@@ -35,6 +35,9 @@ interface SEOSettings {
   keywords: string[];
   writingStyle: string[];
   tone: string[];
+  searchIntent: string;
+  creativityLevel: string;
+  audience: string;
 }
 
 const CreateArticle = () => {
@@ -56,8 +59,11 @@ const CreateArticle = () => {
   // SEO Settings for api.co.id
   const [useApiCoId, setUseApiCoId] = useState(false);
   const [keywordsInput, setKeywordsInput] = useState("");
-  const [writingStyle, setWritingStyle] = useState<string>("");
-  const [tone, setTone] = useState<string>("");
+  const [writingStyle, setWritingStyle] = useState<string>("journalistic");
+  const [tone, setTone] = useState<string>("professional");
+  const [searchIntent, setSearchIntent] = useState<string>("informational");
+  const [creativityLevel, setCreativityLevel] = useState<string>("balanced");
+  const [audience, setAudience] = useState<string>("");
 
   const addSourceLink = () => {
     setSourceLinks([...sourceLinks, { id: crypto.randomUUID(), url: "" }]);
@@ -211,8 +217,11 @@ const CreateArticle = () => {
       // Build SEO settings
       const seoSettings: SEOSettings = {
         keywords,
-        writingStyle: writingStyle ? [writingStyle] : [],
-        tone: tone ? [tone] : []
+        writingStyle: writingStyle ? [writingStyle] : ['journalistic'],
+        tone: tone ? [tone] : ['professional'],
+        searchIntent: searchIntent || 'informational',
+        creativityLevel: creativityLevel || 'balanced',
+        audience: audience || 'general audience'
       };
 
       const { data, error } = await supabase.functions.invoke('generate-article', {
@@ -580,6 +589,54 @@ const CreateArticle = () => {
                           <SelectItem value="analytical">Analytical</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    {/* Search Intent - REQUIRED */}
+                    <div className="space-y-2">
+                      <Label className="text-sm">Search Intent <span className="text-red-500">*</span></Label>
+                      <Select value={searchIntent} onValueChange={setSearchIntent}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih search intent" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="informational">Informational</SelectItem>
+                          <SelectItem value="transactional">Transactional</SelectItem>
+                          <SelectItem value="navigational">Navigational</SelectItem>
+                          <SelectItem value="commercial">Commercial Investigation</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Tujuan pencarian user yang ingin dijawab artikel
+                      </p>
+                    </div>
+
+                    {/* Creativity Level - REQUIRED */}
+                    <div className="space-y-2">
+                      <Label className="text-sm">Creativity Level <span className="text-red-500">*</span></Label>
+                      <Select value={creativityLevel} onValueChange={setCreativityLevel}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih creativity level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low (Factual)</SelectItem>
+                          <SelectItem value="balanced">Balanced</SelectItem>
+                          <SelectItem value="high">High (Creative)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Audience - REQUIRED */}
+                    <div className="space-y-2">
+                      <Label htmlFor="audience" className="text-sm">Target Audience <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="audience"
+                        placeholder="Contoh: Pengusaha muda Indonesia, Investor pemula"
+                        value={audience}
+                        onChange={(e) => setAudience(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Siapa target pembaca artikel ini
+                      </p>
                     </div>
 
                     <p className="text-xs text-muted-foreground">
