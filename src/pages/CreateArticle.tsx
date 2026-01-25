@@ -35,7 +35,6 @@ interface SEOSettings {
   keywords: string[];
   writingStyle: string[];
   tone: string[];
-  audience: string;
 }
 
 const CreateArticle = () => {
@@ -59,7 +58,6 @@ const CreateArticle = () => {
   const [keywordsInput, setKeywordsInput] = useState("");
   const [writingStyle, setWritingStyle] = useState<string>("");
   const [tone, setTone] = useState<string>("");
-  const [audience, setAudience] = useState("");
 
   const addSourceLink = () => {
     setSourceLinks([...sourceLinks, { id: crypto.randomUUID(), url: "" }]);
@@ -214,8 +212,7 @@ const CreateArticle = () => {
       const seoSettings: SEOSettings = {
         keywords,
         writingStyle: writingStyle ? [writingStyle] : [],
-        tone: tone ? [tone] : [],
-        audience
+        tone: tone ? [tone] : []
       };
 
       const { data, error } = await supabase.functions.invoke('generate-article', {
@@ -547,19 +544,22 @@ const CreateArticle = () => {
                         value={keywordsInput}
                         onChange={(e) => setKeywordsInput(e.target.value)}
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Keywords untuk optimasi SEO artikel
+                      </p>
                     </div>
 
                     {/* Writing Style */}
                     <div className="space-y-2">
-                      <Label className="text-sm">Gaya Penulisan</Label>
+                      <Label className="text-sm">Writing Style</Label>
                       <Select value={writingStyle} onValueChange={setWritingStyle}>
                         <SelectTrigger>
                           <SelectValue placeholder="Pilih gaya penulisan" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="journalistic">Jurnalistik</SelectItem>
+                          <SelectItem value="journalistic">Journalistic</SelectItem>
                           <SelectItem value="blog-friendly">Blog Friendly</SelectItem>
-                          <SelectItem value="academic">Akademis</SelectItem>
+                          <SelectItem value="academic">Academic</SelectItem>
                           <SelectItem value="conversational">Conversational</SelectItem>
                         </SelectContent>
                       </Select>
@@ -582,16 +582,9 @@ const CreateArticle = () => {
                       </Select>
                     </div>
 
-                    {/* Target Audience */}
-                    <div className="space-y-2">
-                      <Label htmlFor="audience" className="text-sm">Target Audience (opsional)</Label>
-                      <Input
-                        id="audience"
-                        placeholder="Contoh: Pengusaha muda Indonesia"
-                        value={audience}
-                        onChange={(e) => setAudience(e.target.value)}
-                      />
-                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Point of View akan ditentukan otomatis berdasarkan kategori (Mentor/Investor/Leader)
+                    </p>
                   </div>
                 )}
 

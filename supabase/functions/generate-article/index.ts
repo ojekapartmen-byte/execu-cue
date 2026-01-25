@@ -150,7 +150,6 @@ async function generateWithApiCoId(params: {
     keywords: string[];
     writingStyle: string[];
     tone: string[];
-    audience: string;
   };
   apiKey: string;
 }): Promise<string> {
@@ -172,10 +171,6 @@ async function generateWithApiCoId(params: {
   
   if (imageAnalysis) {
     additionalPrompt += "ANALISIS GAMBAR SUMBER:\n" + imageAnalysis + "\n\n";
-  }
-  
-  if (seoSettings.audience) {
-    additionalPrompt += `TARGET AUDIENCE: ${seoSettings.audience}\n`;
   }
 
   const requestBody = {
@@ -380,8 +375,7 @@ serve(async (req) => {
       seoSettings = {
         keywords: [],
         writingStyle: [],
-        tone: [],
-        audience: ''
+        tone: []
       }
     } = await req.json();
 
