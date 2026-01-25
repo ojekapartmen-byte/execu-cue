@@ -78,9 +78,10 @@ async function generateWithLovableAI(params: {
   scrapedContent: string[];
   sourceLinks: string[];
   sourceImages: { name: string; base64?: string }[];
+  seoSettings?: { keywords?: string; writingStyle?: string; tone?: string };
   apiKey: string;
 }): Promise<string> {
-  const { topic, category, scrapedContent, sourceLinks, sourceImages, apiKey } = params;
+  const { topic, category, scrapedContent, sourceLinks, sourceImages, seoSettings, apiKey } = params;
   
   const categoryDescriptions: Record<string, string> = {
     mentor: "seorang mentor/pembimbing yang berbagi pengalaman dan pembelajaran hidup, memberikan nasihat bijak berdasarkan pengalaman nyata",
@@ -88,32 +89,67 @@ async function generateWithLovableAI(params: {
     leader: "seorang pemimpin yang menginspirasi, memotivasi tim, dan memberikan visi kepemimpinan yang kuat"
   };
 
-  const categoryContext = categoryDescriptions[category] || categoryDescriptions.mentor;
+  const writingStyleDescriptions: Record<string, string> = {
+    'journalistic': 'profesional seperti artikel berita berkualitas, objektif, dan informatif',
+    'blog-friendly': 'santai, mudah dibaca, conversational namun tetap informatif',
+    'academic': 'formal, berbasis riset, dengan referensi dan argumentasi yang kuat',
+    'storytelling': 'naratif yang engaging, menggunakan teknik bercerita untuk menyampaikan pesan'
+  };
 
-  const systemPrompt = `Kamu adalah penulis artikel profesional berbahasa Indonesia dengan gaya penulisan news artikel yang berkualitas tinggi.
+  const toneDescriptions: Record<string, string> = {
+    'professional': 'formal dan kredibel, menjaga otoritas dan kepercayaan pembaca',
+    'friendly': 'ramah dan approachable, seperti berbicara dengan teman',
+    'formal': 'sangat resmi dan baku, menggunakan bahasa formal Indonesia',
+    'inspirational': 'memotivasi dan menginspirasi, membangkitkan semangat pembaca'
+  };
+
+  const categoryContext = categoryDescriptions[category] || categoryDescriptions.mentor;
+  const writingStyle = seoSettings?.writingStyle || 'journalistic';
+  const tone = seoSettings?.tone || 'professional';
+  const keywords = seoSettings?.keywords || '';
+
+  const writingStyleContext = writingStyleDescriptions[writingStyle] || writingStyleDescriptions['journalistic'];
+  const toneContext = toneDescriptions[tone] || toneDescriptions['professional'];
+
+  const systemPrompt = `Kamu adalah penulis artikel profesional berbahasa Indonesia yang ahli dalam SEO dan content writing.
 
 INSTRUKSI PENTING:
 1. Tulis artikel dengan SUDUT PANDANG ORANG KETIGA - jangan gunakan "saya" atau "kita", gunakan nama tokoh atau "ia/beliau"
-2. Gaya penulisan: profesional, seperti artikel berita/news yang berkualitas
-3. Kategori artikel: ${category.toUpperCase()} - tulis dari perspektif ${categoryContext}
-4. Gunakan struktur:
-   - Judul utama yang menarik
-   - Paragraf pembuka yang kuat
-   - Beberapa sub-heading untuk setiap poin penting
+2. Kategori artikel: ${category.toUpperCase()} - tulis dari perspektif ${categoryContext}
+3. Gunakan struktur:
+   - Judul utama yang menarik dan mengandung keyword utama
+   - Paragraf pembuka yang kuat (bisa dijadikan meta description)
+   - Beberapa sub-heading (H2, H3) untuk setiap poin penting
    - Paragraf pendek (2-4 kalimat per paragraf)
    - Kesimpulan atau call-to-action di akhir
-5. REWRITE konten dari sumber dengan gaya baru, JANGAN copy paste
-6. Tambahkan insight dan perspektif yang relevan dengan kategori ${category}
-7. Minimal 500 kata, maksimal 1000 kata
+4. REWRITE konten dari sumber dengan gaya baru, JANGAN copy paste
+5. Tambahkan insight dan perspektif yang relevan dengan kategori ${category}
+6. Minimal 500 kata, maksimal 1000 kata
+
+SEO OPTIMIZATION:
+- Target Keywords: ${keywords || 'sesuai dengan topik'}
+- Writing Style: ${writingStyle} - ${writingStyleContext}
+- Tone: ${tone} - ${toneContext}
+
+INSTRUKSI SEO:
+1. Gunakan keywords secara NATURAL di judul, sub-heading, dan paragraf pertama
+2. Keyword density optimal 1-2% (jangan berlebihan)
+3. Gunakan variasi kata kunci (LSI keywords) yang relevan
+4. Buat paragraf pembuka yang bisa dijadikan meta description (150-160 karakter pertama harus menarik)
+5. Struktur heading yang SEO-friendly (H1 untuk judul utama, H2 untuk sub-topik)
+6. Gunakan internal linking keywords jika relevan
 
 ${ARTICLE_STYLE_EXAMPLE}
 
 JANGAN gunakan sumber contoh style di atas sebagai konten, itu hanya referensi gaya penulisan.`;
 
-  let userPrompt = `Buatkan artikel profesional tentang topik: "${topic}"
+  let userPrompt = `Buatkan artikel profesional SEO-friendly tentang topik: "${topic}"
 
 Kategori: ${category.toUpperCase()}
-Perspektif penulisan: ${categoryContext}`;
+Perspektif penulisan: ${categoryContext}
+Gaya penulisan: ${writingStyle} (${writingStyleContext})
+Tone: ${tone} (${toneContext})
+${keywords ? `Target Keywords: ${keywords}` : ''}`;
 
   if (scrapedContent.length > 0) {
     userPrompt += `
@@ -216,7 +252,8 @@ serve(async (req) => {
       topic, 
       category, 
       sourceLinks, 
-      sourceImages
+      sourceImages,
+      seoSettings
     } = await req.json();
 
     if (!topic || !category) {
@@ -264,6 +301,7 @@ serve(async (req) => {
       scrapedContent,
       sourceLinks,
       sourceImages,
+      seoSettings,
       apiKey: LOVABLE_API_KEY
     });
 

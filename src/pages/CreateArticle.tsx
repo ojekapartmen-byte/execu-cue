@@ -30,6 +30,25 @@ interface SourceImage {
   base64?: string;
 }
 
+interface SEOSettings {
+  keywords: string;
+  writingStyle: string;
+  tone: string;
+}
+
+const WRITING_STYLES = [
+  { value: 'journalistic', label: 'Journalistic', desc: 'Gaya berita profesional' },
+  { value: 'blog-friendly', label: 'Blog-friendly', desc: 'Santai dan mudah dibaca' },
+  { value: 'academic', label: 'Academic', desc: 'Formal dan berbasis riset' },
+  { value: 'storytelling', label: 'Storytelling', desc: 'Naratif dan engaging' },
+];
+
+const TONES = [
+  { value: 'professional', label: 'Professional', desc: 'Formal dan kredibel' },
+  { value: 'friendly', label: 'Friendly', desc: 'Ramah dan approachable' },
+  { value: 'formal', label: 'Formal', desc: 'Sangat resmi dan baku' },
+  { value: 'inspirational', label: 'Inspirational', desc: 'Memotivasi dan menginspirasi' },
+];
 
 const CreateArticle = () => {
   const { toast } = useToast();
@@ -40,6 +59,11 @@ const CreateArticle = () => {
     { id: crypto.randomUUID(), url: "" }
   ]);
   const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
+  const [seoSettings, setSeoSettings] = useState<SEOSettings>({
+    keywords: '',
+    writingStyle: 'journalistic',
+    tone: 'professional'
+  });
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [generatedArticle, setGeneratedArticle] = useState<string | null>(null);
@@ -196,7 +220,8 @@ const CreateArticle = () => {
           topic,
           category,
           sourceLinks: validLinks.map(l => l.url),
-          sourceImages: imageData
+          sourceImages: imageData,
+          seoSettings
         }
       });
 
@@ -479,6 +504,73 @@ const CreateArticle = () => {
                   )}
                 </div>
 
+                {/* SEO Settings */}
+                <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <Label className="font-medium">SEO Settings</Label>
+                  </div>
+                  
+                  {/* Keywords */}
+                  <div className="space-y-2">
+                    <Label htmlFor="keywords" className="text-sm">Keywords</Label>
+                    <Input
+                      id="keywords"
+                      placeholder="bisnis, startup, investasi, kepemimpinan"
+                      value={seoSettings.keywords}
+                      onChange={(e) => setSeoSettings(prev => ({ ...prev, keywords: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Pisahkan dengan koma untuk multiple keywords
+                    </p>
+                  </div>
+
+                  {/* Writing Style */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Writing Style</Label>
+                    <Select 
+                      value={seoSettings.writingStyle} 
+                      onValueChange={(val) => setSeoSettings(prev => ({ ...prev, writingStyle: val }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WRITING_STYLES.map(style => (
+                          <SelectItem key={style.value} value={style.value}>
+                            <div className="flex flex-col">
+                              <span>{style.label}</span>
+                              <span className="text-xs text-muted-foreground">{style.desc}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Tone */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Tone</Label>
+                    <Select 
+                      value={seoSettings.tone} 
+                      onValueChange={(val) => setSeoSettings(prev => ({ ...prev, tone: val }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TONES.map(tone => (
+                          <SelectItem key={tone.value} value={tone.value}>
+                            <div className="flex flex-col">
+                              <span>{tone.label}</span>
+                              <span className="text-xs text-muted-foreground">{tone.desc}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
                 {/* Source Links */}
                 <div className="space-y-3">
