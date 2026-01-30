@@ -11,7 +11,21 @@ import { useToast } from "@/hooks/use-toast";
 import { useArticles } from "@/hooks/useArticles";
 import { useSEO, SEO_CONFIG } from "@/hooks/useSEO";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download, Save, History } from "lucide-react";
+import { Loader2, Plus, Trash2, Sparkles, FileText, ArrowLeft, ImagePlus, X, Download, Save, History, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { format } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
@@ -55,7 +69,8 @@ const CreateArticle = () => {
   // SEO Configuration
   useSEO(SEO_CONFIG.createArticle);
   const { toast } = useToast();
-  const { saveArticle } = useArticles();
+  const { articles, isLoading: isLoadingArticles, saveArticle, deleteArticle } = useArticles();
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
   const [category, setCategory] = useState<ArticleCategory | "">("");
   const [sourceLinks, setSourceLinks] = useState<SourceLink[]>([
@@ -763,6 +778,147 @@ const CreateArticle = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Article History Section */}
+          <section className="mt-8" aria-label="Article history">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5 text-primary" />
+                  History Artikel
+                  <Badge variant="secondary" className="ml-2">
+                    {articles.length}
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  Artikel yang sudah tersimpan di database
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingArticles ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin mb-2" />
+                    <p className="text-sm">Memuat artikel...</p>
+                  </div>
+                ) : articles.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <FileText className="h-10 w-10 mb-3 opacity-50" />
+                    <p className="text-sm">Belum ada artikel tersimpan</p>
+                    <p className="text-xs mt-1">Generate dan simpan artikel untuk melihatnya di sini</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[400px] pr-4">
+                    <div className="space-y-3">
+                      {articles.map((article) => {
+                        const extractTitle = (content: string) => {
+                          const lines = content.split('\n');
+                          const titleLine = lines.find(line => line.trim().startsWith('#'));
+                          if (titleLine) {
+                            return titleLine.replace(/^#+\s*/, '').trim();
+                          }
+                          return content.slice(0, 50) + '...';
+                        };
+
+                        const getPreview = (content: string) => {
+                          const lines = content.split('\n').filter(line => !line.startsWith('#') && line.trim());
+                          return lines.slice(0, 2).join(' ').slice(0, 150) + '...';
+                        };
+
+                        const isExpanded = expandedHistoryId === article.id;
+
+                        return (
+                          <div
+                            key={article.id}
+                            className="border border-border rounded-lg p-4 hover:bg-muted/30 transition-colors"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-sm truncate">
+                                  {extractTitle(article.content)}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  {format(new Date(article.created_at), "d MMM yyyy, HH:mm", { locale: idLocale })}
+                                  {article.topic && (
+                                    <Badge variant="outline" className="text-[10px] h-4">
+                                      {article.topic.slice(0, 20)}...
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => setExpandedHistoryId(isExpanded ? null : article.id)}
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Hapus Artikel?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Artikel ini akan dihapus permanen dan tidak dapat dikembalikan.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Batal</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => deleteArticle(article.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Hapus
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </div>
+                            
+                            {isExpanded ? (
+                              <div className="mt-3 pt-3 border-t border-border">
+                                <div className="whitespace-pre-wrap text-sm leading-relaxed bg-muted/50 p-3 rounded-md max-h-[300px] overflow-y-auto">
+                                  {article.content}
+                                </div>
+                                {article.source_links && article.source_links.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-1">
+                                    {article.source_links.map((link, i) => (
+                                      <Badge key={i} variant="secondary" className="text-[10px]">
+                                        Sumber {i + 1}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                                {getPreview(article.content)}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+          </section>
         </article>
       </main>
 
