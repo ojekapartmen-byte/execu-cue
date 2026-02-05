@@ -1,6 +1,6 @@
  import { useState } from "react";
  import { Link } from "react-router-dom";
-import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag } from "lucide-react";
+import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag, Sparkles, Wand2 } from "lucide-react";
  import { Button } from "@/components/ui/button";
  import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
  import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -53,6 +53,9 @@ import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag } from "lucide-r
    const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [mainKeyword, setMainKeyword] = useState("");
   const [relatedKeywords, setRelatedKeywords] = useState("");
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([]);
  
    const getInputContent = () => {
      switch (activeTab) {
@@ -111,6 +114,74 @@ import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag } from "lucide-r
      }
    };
  
+  const handleDetectKeywords = async () => {
+    const input = getInputContent();
+    if (!input || !input.content.trim()) {
+      toast.error("Mohon masukkan konten terlebih dahulu");
+      return;
+    }
+
+    setIsDetecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("seo-audit", {
+        body: { action: "detect", inputType: input.type, content: input.content },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data.mainKeyword) {
+        setMainKeyword(data.mainKeyword);
+      }
+      if (data.relatedKeywords?.length > 0) {
+        setRelatedKeywords(data.relatedKeywords.join(", "));
+      }
+      toast.success("Keyword berhasil dideteksi!");
+    } catch (err: any) {
+      console.error("Detect keywords error:", err);
+      toast.error(err.message || "Gagal mendeteksi keyword");
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  const handleSuggestKeywords = async () => {
+    if (!mainKeyword.trim()) {
+      toast.error("Mohon masukkan keyword utama terlebih dahulu");
+      return;
+    }
+
+    setIsSuggesting(true);
+    setSuggestedKeywords([]);
+    try {
+      const { data, error } = await supabase.functions.invoke("seo-audit", {
+        body: { action: "suggest", mainKeyword: mainKeyword.trim() },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data.suggestions?.length > 0) {
+        setSuggestedKeywords(data.suggestions);
+        toast.success("Saran keyword berhasil dibuat!");
+      }
+    } catch (err: any) {
+      console.error("Suggest keywords error:", err);
+      toast.error(err.message || "Gagal membuat saran keyword");
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  const addSuggestedKeyword = (keyword: string) => {
+    const current = relatedKeywords.split(",").map(k => k.trim()).filter(Boolean);
+    if (!current.includes(keyword)) {
+      const updated = [...current, keyword].join(", ");
+      setRelatedKeywords(updated);
+      toast.success(`"${keyword}" ditambahkan`);
+    }
+  };
+
    return (
      <div className="min-h-screen bg-background">
        {/* Header */}
@@ -147,9 +218,26 @@ import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag } from "lucide-r
             {/* Keyword Inputs */}
             <div className="grid sm:grid-cols-2 gap-4 mb-6 p-4 rounded-lg bg-muted/50 border border-border">
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-primary" />
-                  Keyword Utama <span className="text-destructive">*</span>
+                <label className="text-sm font-medium text-foreground mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-primary" />
+                    Keyword Utama <span className="text-destructive">*</span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSuggestKeywords}
+                    disabled={isSuggesting || !mainKeyword.trim()}
+                    className="h-7 text-xs"
+                  >
+                    {isSuggesting ? (
+                      <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                    ) : (
+                      <Sparkles className="w-3 h-3 mr-1" />
+                    )}
+                    Saran Keyword
+                  </Button>
                 </label>
                 <Input
                   placeholder="Contoh: jasa seo jakarta"
@@ -160,6 +248,25 @@ import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag } from "lucide-r
                 <p className="text-xs text-muted-foreground mt-1">
                   Kata kunci utama yang ingin ditargetkan
                 </p>
+                {suggestedKeywords.length > 0 && (
+                  <div className="mt-3 p-3 rounded-lg bg-background border border-primary/20">
+                    <p className="text-xs font-medium text-primary mb-2 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      Saran Keyword Terkait:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedKeywords.map((kw, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => addSuggestedKeyword(kw)}
+                          className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                        >
+                          + {kw}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
@@ -174,6 +281,30 @@ import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag } from "lucide-r
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Pisahkan dengan koma untuk beberapa keyword
+                </p>
+              </div>
+              <div className="sm:col-span-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDetectKeywords}
+                  disabled={isDetecting || !getInputContent()?.content.trim()}
+                  className="w-full"
+                >
+                  {isDetecting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Mendeteksi Keyword...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      Deteksi Keyword Otomatis dari Konten
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1 text-center">
+                  AI akan menganalisis konten dan mengekstrak keyword utama secara otomatis
                 </p>
               </div>
             </div>

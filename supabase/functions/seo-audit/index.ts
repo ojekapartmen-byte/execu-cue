@@ -355,13 +355,186 @@ Related Keywords: ${relatedKwList}
    }
  }
  
+async function detectKeywords(content: string, inputType: string): Promise<{ mainKeyword: string; relatedKeywords: string[] }> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    throw new Error("LOVABLE_API_KEY is not configured");
+  }
+
+  const systemPrompt = `You are an SEO keyword extraction expert. Analyze the provided content and extract the most relevant keywords.
+
+You MUST respond with a valid JSON object (no markdown, no code blocks):
+{
+  "mainKeyword": "<the single most important keyword phrase, 2-4 words>",
+  "relatedKeywords": ["<keyword1>", "<keyword2>", "<keyword3>", "<keyword4>", "<keyword5>"]
+}
+
+Guidelines:
+- Main keyword should be the primary topic/focus of the content
+- Related keywords should be LSI (Latent Semantic Indexing) keywords
+- All keywords should be in the same language as the content
+- Prefer long-tail keywords (2-4 words) over single words
+- Focus on commercial/informational intent keywords`;
+
+  const userPrompt = `Extract keywords from this ${inputType} content:\n\n${content.slice(0, 20000)}`;
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.3,
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Rate limit exceeded. Please try again later.");
+    }
+    if (response.status === 402) {
+      throw new Error("Payment required. Please add credits to your workspace.");
+    }
+    throw new Error("Failed to detect keywords");
+  }
+
+  const data = await response.json();
+  let jsonContent = data.choices?.[0]?.message?.content?.trim() || "";
+  
+  if (jsonContent.startsWith("```json")) jsonContent = jsonContent.slice(7);
+  if (jsonContent.startsWith("```")) jsonContent = jsonContent.slice(3);
+  if (jsonContent.endsWith("```")) jsonContent = jsonContent.slice(0, -3);
+
+  try {
+    return JSON.parse(jsonContent.trim());
+  } catch {
+    throw new Error("Failed to parse keyword detection response");
+  }
+}
+
+async function suggestKeywords(mainKeyword: string): Promise<string[]> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    throw new Error("LOVABLE_API_KEY is not configured");
+  }
+
+  const systemPrompt = `You are an SEO keyword research expert. Generate related keyword suggestions for the given main keyword.
+
+You MUST respond with a valid JSON object (no markdown, no code blocks):
+{
+  "suggestions": ["<keyword1>", "<keyword2>", "<keyword3>", "<keyword4>", "<keyword5>", "<keyword6>", "<keyword7>", "<keyword8>"]
+}
+
+Guidelines:
+- Generate 8 related keywords/phrases
+- Include LSI (semantically related) keywords
+- Include long-tail variations
+- Include question-based keywords (what, how, why)
+- Mix commercial and informational intent
+- Keep keywords in the same language as the main keyword`;
+
+  const userPrompt = `Generate related keyword suggestions for: "${mainKeyword}"`;
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.5,
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Rate limit exceeded. Please try again later.");
+    }
+    if (response.status === 402) {
+      throw new Error("Payment required. Please add credits to your workspace.");
+    }
+    throw new Error("Failed to suggest keywords");
+  }
+
+  const data = await response.json();
+  let jsonContent = data.choices?.[0]?.message?.content?.trim() || "";
+  
+  if (jsonContent.startsWith("```json")) jsonContent = jsonContent.slice(7);
+  if (jsonContent.startsWith("```")) jsonContent = jsonContent.slice(3);
+  if (jsonContent.endsWith("```")) jsonContent = jsonContent.slice(0, -3);
+
+  try {
+    const parsed = JSON.parse(jsonContent.trim());
+    return parsed.suggestions || [];
+  } catch {
+    throw new Error("Failed to parse keyword suggestions");
+  }
+}
+
  serve(async (req) => {
    if (req.method === "OPTIONS") {
      return new Response(null, { headers: corsHeaders });
    }
  
    try {
-      const { inputType, content, mainKeyword, relatedKeywords } = await req.json();
+      const { action, inputType, content, mainKeyword, relatedKeywords } = await req.json();
+
+      // Handle keyword detection
+      if (action === "detect") {
+        if (!content || typeof content !== "string" || content.trim().length === 0) {
+          return new Response(
+            JSON.stringify({ error: "Content is required for detection" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        let contentToAnalyze = content;
+        if (inputType === "url") {
+          const urlPattern = /^https?:\/\/.+/i;
+          if (!urlPattern.test(content)) {
+            return new Response(
+              JSON.stringify({ error: "Invalid URL format" }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          contentToAnalyze = await fetchUrlContent(content);
+        }
+
+        const keywords = await detectKeywords(contentToAnalyze, inputType);
+        return new Response(
+          JSON.stringify(keywords),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Handle keyword suggestions
+      if (action === "suggest") {
+        if (!mainKeyword || typeof mainKeyword !== "string" || mainKeyword.trim().length === 0) {
+          return new Response(
+            JSON.stringify({ error: "Main keyword is required for suggestions" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const suggestions = await suggestKeywords(mainKeyword.trim());
+        return new Response(
+          JSON.stringify({ suggestions }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Default: Run full SEO audit
  
      if (!content || typeof content !== "string" || content.trim().length === 0) {
        return new Response(
