@@ -2,8 +2,8 @@ import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useArticles } from "@/hooks/useArticles";
-import { ArrowLeft, FileText, Trash2, Loader2, Clock, ExternalLink } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, FileText, Trash2, Loader2, Clock, ExternalLink, Search } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import {
@@ -23,9 +23,14 @@ import { useSEO, SEO_CONFIG } from "@/hooks/useSEO";
 const ArticleHistory = () => {
   // SEO Configuration
   useSEO(SEO_CONFIG.articleHistory);
+  const navigate = useNavigate();
 
   const { articles, isLoading, deleteArticle } = useArticles();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const handleAuditSeo = (article: typeof articles[0]) => {
+    navigate('/seo-audit', { state: { article } });
+  };
 
   const extractTitle = (content: string) => {
     const lines = content.split('\n');
@@ -99,6 +104,15 @@ const ArticleHistory = () => {
                         >
                           <ExternalLink className="h-4 w-4 mr-1" />
                           {expandedId === article.id ? "Tutup" : "Lihat"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleAuditSeo(article)}
+                          className="text-primary hover:text-primary"
+                        >
+                          <Search className="h-4 w-4 mr-1" />
+                          Audit SEO
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
