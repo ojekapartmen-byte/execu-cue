@@ -12,18 +12,31 @@ import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag, Sparkles, Wand2
  import { supabase } from "@/integrations/supabase/client";
  import { toast } from "sonner";
  
- interface AuditResult {
-   overallScore: number;
-   categories: {
-     name: string;
-     score: number;
-     items: {
-       label: string;
-       status: "pass" | "warning" | "fail";
-       message: string;
-       recommendation?: string;
-     }[];
-   }[];
+interface CrawlabilityResult {
+  robotsTxt: {
+    exists: boolean;
+    content?: string;
+    error?: string;
+  };
+  sitemap: {
+    exists: boolean;
+    url?: string;
+    error?: string;
+  };
+}
+
+interface AuditResult {
+  overallScore: number;
+  categories: {
+    name: string;
+    score: number;
+    items: {
+      label: string;
+      status: "pass" | "warning" | "fail";
+      message: string;
+      recommendation?: string;
+    }[];
+  }[];
   pageSpeed?: {
     performanceScore: number;
     metrics: {
@@ -39,7 +52,8 @@ import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag, Sparkles, Wand2
       recommendation?: string;
     }[];
   };
- }
+  crawlability?: CrawlabilityResult;
+}
  
  const SeoAudit = () => {
    useSEO(SEO_CONFIG.seoAudit);
@@ -97,14 +111,17 @@ import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag, Sparkles, Wand2
         },
        });
  
-       if (error) throw error;
-       if (data?.error) throw new Error(data.error);
- 
-      const result = data.result;
-      if (data.pageSpeed) {
-        result.pageSpeed = data.pageSpeed;
-      }
-      setAuditResult(result);
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        const result = data.result;
+        if (data.pageSpeed) {
+          result.pageSpeed = data.pageSpeed;
+        }
+        if (data.crawlability) {
+          result.crawlability = data.crawlability;
+        }
+        setAuditResult(result);
        toast.success("Audit SEO selesai!");
      } catch (err: any) {
        console.error("SEO Audit error:", err);
