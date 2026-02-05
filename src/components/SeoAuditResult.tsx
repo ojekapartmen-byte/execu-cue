@@ -2,7 +2,7 @@
  import { Progress } from "@/components/ui/progress";
  import { Badge } from "@/components/ui/badge";
  import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
- import { CheckCircle2, AlertTriangle, XCircle, TrendingUp } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, TrendingUp, Zap, Gauge } from "lucide-react";
  import { cn } from "@/lib/utils";
  
  interface AuditItem {
@@ -18,9 +18,23 @@
    items: AuditItem[];
  }
  
+interface PageSpeedMetric {
+  name: string;
+  value: string;
+  score: number;
+  status: "pass" | "warning" | "fail";
+}
+
+interface PageSpeedResult {
+  performanceScore: number;
+  metrics: PageSpeedMetric[];
+  opportunities: AuditItem[];
+}
+
  interface AuditResult {
    overallScore: number;
    categories: AuditCategory[];
+  pageSpeed?: PageSpeedResult;
  }
  
  interface SeoAuditResultProps {
@@ -89,6 +103,76 @@
          </CardContent>
        </Card>
  
+      {/* PageSpeed Insights Section */}
+      {result.pageSpeed && (
+        <Card className="overflow-hidden">
+          <div className={cn("h-2 bg-gradient-to-r", getScoreGradient(result.pageSpeed.performanceScore))} />
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-primary" />
+                PageSpeed Performance
+              </span>
+              <span className={cn("text-4xl font-bold", getScoreColor(result.pageSpeed.performanceScore))}>
+                {result.pageSpeed.performanceScore}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Progress value={result.pageSpeed.performanceScore} className="h-3" />
+            
+            {/* Core Web Vitals */}
+            <div>
+              <h4 className="font-medium text-foreground mb-4 flex items-center gap-2">
+                <Gauge className="w-4 h-4" />
+                Core Web Vitals & Metrics
+              </h4>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {result.pageSpeed.metrics.map((metric, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-lg bg-muted/50 border border-border"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <StatusIcon status={metric.status} />
+                      <span className={cn("text-lg font-bold", getScoreColor(metric.score))}>
+                        {metric.score}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-foreground">{metric.name}</p>
+                    <p className="text-lg font-semibold text-primary mt-1">{metric.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Opportunities */}
+            {result.pageSpeed.opportunities.length > 0 && (
+              <div>
+                <h4 className="font-medium text-foreground mb-4">Improvement Opportunities</h4>
+                <div className="space-y-3">
+                  {result.pageSpeed.opportunities.map((opp, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-3 p-4 rounded-lg bg-muted/50"
+                    >
+                      <StatusIcon status={opp.status} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-foreground">{opp.label}</span>
+                          <StatusBadge status={opp.status} />
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{opp.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
        {/* Category Scores */}
        <div className="grid md:grid-cols-3 gap-4">
          {result.categories.map((category) => (

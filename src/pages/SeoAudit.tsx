@@ -24,6 +24,21 @@
        recommendation?: string;
      }[];
    }[];
+  pageSpeed?: {
+    performanceScore: number;
+    metrics: {
+      name: string;
+      value: string;
+      score: number;
+      status: "pass" | "warning" | "fail";
+    }[];
+    opportunities: {
+      label: string;
+      status: "pass" | "warning" | "fail";
+      message: string;
+      recommendation?: string;
+    }[];
+  };
  }
  
  const SeoAudit = () => {
@@ -75,7 +90,11 @@
        if (error) throw error;
        if (data?.error) throw new Error(data.error);
  
-       setAuditResult(data.result);
+      const result = data.result;
+      if (data.pageSpeed) {
+        result.pageSpeed = data.pageSpeed;
+      }
+      setAuditResult(result);
        toast.success("Audit SEO selesai!");
      } catch (err: any) {
        console.error("SEO Audit error:", err);
