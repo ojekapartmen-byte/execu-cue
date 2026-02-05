@@ -208,13 +208,26 @@ async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> 
   }
 }
 
- async function analyzeWithAI(content: string, inputType: string): Promise<AuditResult> {
+  async function analyzeWithAI(
+    content: string, 
+    inputType: string,
+    mainKeyword: string,
+    relatedKeywords: string[]
+  ): Promise<AuditResult> {
    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
    if (!LOVABLE_API_KEY) {
      throw new Error("LOVABLE_API_KEY is not configured");
    }
  
-   const systemPrompt = `You are an expert SEO auditor. Analyze the provided content and return a comprehensive SEO audit.
+   const relatedKwList = relatedKeywords.length > 0 
+     ? relatedKeywords.join(", ") 
+     : "none provided";
+
+   const systemPrompt = `You are an expert SEO auditor. Analyze the provided content for keyword optimization and SEO best practices.
+
+TARGET KEYWORDS:
+- Main Keyword: "${mainKeyword}"
+- Related Keywords: ${relatedKwList}
  
  You MUST respond with a valid JSON object following this exact structure (no markdown, no code blocks, just pure JSON):
  {
@@ -245,7 +258,7 @@ async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> 
    ]
  }
  
- Basic SEO items to check:
+Basic SEO items to check (with focus on main keyword "${mainKeyword}"):
  - Title tag (exists, length 50-60 chars, contains keywords)
  - Meta description (exists, length 140-160 chars, compelling)
  - H1 tag (single, descriptive, contains keyword)
@@ -253,14 +266,21 @@ async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> 
  - Image alt attributes (all images have descriptive alt text)
  - Internal links (presence and anchor text quality)
  - External links (rel attributes, nofollow where appropriate)
+- Main keyword in title (check if "${mainKeyword}" appears in title)
+- Main keyword in first paragraph (check if "${mainKeyword}" appears early)
+- Main keyword in URL slug (for URL inputs)
  
- Content Quality items to check:
+Content Quality items to check (keyword optimization for "${mainKeyword}"):
  - Word count (minimum 300 words for blog posts)
- - Keyword density (1-2% natural usage)
+- Main keyword density (1-2% natural usage of "${mainKeyword}")
+- Related keywords usage (check presence of: ${relatedKwList})
+- Keyword in headings (H2-H6 should contain keyword variations)
  - Readability score (appropriate for target audience)
  - Content structure (paragraphs, lists, formatting)
  - Unique content indicators
  - First paragraph quality (hook, keyword placement)
+- LSI keywords (check for semantically related terms)
+- Keyword stuffing check (ensure natural usage, not over-optimized)
  
  Technical SEO items to check:
  - Schema markup (presence of structured data)
@@ -273,7 +293,10 @@ async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> 
  
  Be thorough but practical. For each failing item, provide actionable recommendations.`;
  
-   const userPrompt = `Analyze this ${inputType} content for SEO optimization:
+   const userPrompt = `Analyze this ${inputType} content for SEO optimization.
+
+Target Main Keyword: "${mainKeyword}"
+Related Keywords: ${relatedKwList}
  
  ${content.slice(0, 50000)}`;
  
@@ -338,7 +361,7 @@ async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> 
    }
  
    try {
-     const { inputType, content } = await req.json();
+      const { inputType, content, mainKeyword, relatedKeywords } = await req.json();
  
      if (!content || typeof content !== "string" || content.trim().length === 0) {
        return new Response(
@@ -347,6 +370,15 @@ async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> 
        );
      }
  
+      if (!mainKeyword || typeof mainKeyword !== "string" || mainKeyword.trim().length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Main keyword is required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const keywords: string[] = Array.isArray(relatedKeywords) ? relatedKeywords : [];
+
      let contentToAnalyze = content;
  
      // If URL, fetch the content first
@@ -361,8 +393,8 @@ async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> 
        contentToAnalyze = await fetchUrlContent(content);
      }
  
-    // Run AI analysis
-    const aiResult = await analyzeWithAI(contentToAnalyze, inputType);
+    // Run AI analysis with keywords
+    const aiResult = await analyzeWithAI(contentToAnalyze, inputType, mainKeyword.trim(), keywords);
 
     // If URL input, also fetch PageSpeed data
     let pageSpeedResult: PageSpeedResult | null = null;
