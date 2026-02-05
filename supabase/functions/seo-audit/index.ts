@@ -223,13 +223,14 @@ async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> 
      ? relatedKeywords.join(", ") 
      : "none provided";
 
-   const systemPrompt = `You are an expert SEO auditor. Analyze the provided content for keyword optimization and SEO best practices.
+   const systemPrompt = `Kamu adalah seorang pakar SEO auditor. Analisis konten yang diberikan untuk optimasi keyword dan praktik SEO terbaik.
+PENTING: Semua respons HARUS dalam Bahasa Indonesia.
 
-TARGET KEYWORDS:
-- Main Keyword: "${mainKeyword}"
-- Related Keywords: ${relatedKwList}
+TARGET KEYWORD:
+- Keyword Utama: "${mainKeyword}"
+- Keyword Terkait: ${relatedKwList}
  
- You MUST respond with a valid JSON object following this exact structure (no markdown, no code blocks, just pure JSON):
+ Kamu HARUS merespons dengan objek JSON valid mengikuti struktur ini (tanpa markdown, tanpa code blocks, hanya JSON murni):
  {
    "overallScore": <number 0-100>,
    "categories": [
@@ -258,40 +259,40 @@ TARGET KEYWORDS:
    ]
  }
  
-Basic SEO items to check (with focus on main keyword "${mainKeyword}"):
- - Title tag (exists, length 50-60 chars, contains keywords)
- - Meta description (exists, length 140-160 chars, compelling)
- - H1 tag (single, descriptive, contains keyword)
- - H2-H6 structure (proper hierarchy)
- - Image alt attributes (all images have descriptive alt text)
- - Internal links (presence and anchor text quality)
- - External links (rel attributes, nofollow where appropriate)
-- Main keyword in title (check if "${mainKeyword}" appears in title)
-- Main keyword in first paragraph (check if "${mainKeyword}" appears early)
-- Main keyword in URL slug (for URL inputs)
+Item SEO Dasar yang perlu dicek (fokus pada keyword utama "${mainKeyword}"):
+ - Tag judul (ada, panjang 50-60 karakter, mengandung keyword)
+ - Meta deskripsi (ada, panjang 140-160 karakter, menarik)
+ - Tag H1 (tunggal, deskriptif, mengandung keyword)
+ - Struktur H2-H6 (hierarki yang tepat)
+ - Atribut alt gambar (semua gambar memiliki alt text deskriptif)
+ - Link internal (keberadaan dan kualitas anchor text)
+ - Link eksternal (atribut rel, nofollow jika diperlukan)
+- Keyword utama di judul (cek apakah "${mainKeyword}" muncul di judul)
+- Keyword utama di paragraf pertama (cek apakah "${mainKeyword}" muncul di awal)
+- Keyword utama di URL slug (untuk input URL)
  
-Content Quality items to check (keyword optimization for "${mainKeyword}"):
- - Word count (minimum 300 words for blog posts)
-- Main keyword density (1-2% natural usage of "${mainKeyword}")
-- Related keywords usage (check presence of: ${relatedKwList})
-- Keyword in headings (H2-H6 should contain keyword variations)
- - Readability score (appropriate for target audience)
- - Content structure (paragraphs, lists, formatting)
- - Unique content indicators
- - First paragraph quality (hook, keyword placement)
-- LSI keywords (check for semantically related terms)
-- Keyword stuffing check (ensure natural usage, not over-optimized)
+Item Kualitas Konten yang perlu dicek (optimasi keyword "${mainKeyword}"):
+ - Jumlah kata (minimal 300 kata untuk blog post)
+- Kepadatan keyword utama (1-2% penggunaan natural "${mainKeyword}")
+- Penggunaan keyword terkait (cek keberadaan: ${relatedKwList})
+- Keyword di heading (H2-H6 harus mengandung variasi keyword)
+ - Skor keterbacaan (sesuai target audiens)
+ - Struktur konten (paragraf, list, formatting)
+ - Indikator konten unik
+ - Kualitas paragraf pertama (hook, penempatan keyword)
+- Keyword LSI (cek istilah yang terkait secara semantik)
+- Cek keyword stuffing (pastikan penggunaan natural, tidak over-optimized)
  
- Technical SEO items to check:
- - Schema markup (presence of structured data)
- - Canonical tag (present and correct)
- - Robots meta tag (appropriate directives)
- - Open Graph tags (og:title, og:description, og:image)
+ Item SEO Teknis yang perlu dicek:
+ - Schema markup (keberadaan structured data)
+ - Tag canonical (ada dan benar)
+ - Meta tag robots (direktif yang tepat)
+ - Tag Open Graph (og:title, og:description, og:image)
  - Twitter Card tags
  - Mobile viewport meta
- - Language declaration (html lang attribute)
+ - Deklarasi bahasa (atribut html lang)
  
- Be thorough but practical. For each failing item, provide actionable recommendations.`;
+ Jadilah teliti tapi praktis. Untuk setiap item yang gagal, berikan rekomendasi yang actionable dalam Bahasa Indonesia.`;
  
    const userPrompt = `Analyze this ${inputType} content for SEO optimization.
 
