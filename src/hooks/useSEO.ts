@@ -118,4 +118,9 @@ export const SEO_CONFIG = {
     description: 'The page you are looking for does not exist. Return to the homepage to continue using AI Daily Digest.',
     noIndex: true,
   },
+ seoAudit: {
+   title: 'SEO On-Page Audit - AI Analysis Tool',
+   description: 'Comprehensive SEO on-page audit with AI. Analyze websites, pages, or content for SEO optimization. Get scores and actionable recommendations.',
+   keywords: 'SEO audit, on-page SEO, SEO analysis, website optimization, SEO checker, SEO tools',
+ },
 } as const;

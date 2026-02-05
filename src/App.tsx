@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import CreateArticle from "./pages/CreateArticle";
 import ArticleHistory from "./pages/ArticleHistory";
 import NotFound from "./pages/NotFound";
+ import SeoAudit from "./pages/SeoAudit";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/daily-digest" element={<Index />} />
           <Route path="/create-article" element={<CreateArticle />} />
           <Route path="/article-history" element={<ArticleHistory />} />
+          <Route path="/seo-audit" element={<SeoAudit />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
