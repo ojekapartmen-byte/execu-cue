@@ -32,48 +32,121 @@ interface PageSpeedResult {
   opportunities: AuditItem[];
 }
 
+ interface CrawlabilityResult {
+   robotsTxt: {
+     exists: boolean;
+     content?: string;
+     error?: string;
+   };
+   sitemap: {
+     exists: boolean;
+     url?: string;
+     error?: string;
+   };
+ }
+
  interface AuditResult {
    overallScore: number;
    categories: AuditCategory[];
  }
  
- async function fetchUrlContent(url: string): Promise<string> {
-   const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-   
-   if (FIRECRAWL_API_KEY) {
-     try {
-       const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
-         method: "POST",
-         headers: {
-           "Content-Type": "application/json",
-           "Authorization": `Bearer ${FIRECRAWL_API_KEY}`,
-         },
-         body: JSON.stringify({
-           url,
-           formats: ["html", "markdown"],
-         }),
-       });
- 
-       if (response.ok) {
-         const data = await response.json();
-         return data.data?.html || data.data?.markdown || "";
-       }
-     } catch (err) {
-       console.error("Firecrawl error:", err);
-     }
-   }
- 
+function getBaseUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    return `${urlObj.protocol}//${urlObj.host}`;
+  } catch {
+    return url;
+  }
+}
+
+async function checkRobotsTxt(url: string): Promise<{ exists: boolean; content?: string; error?: string }> {
+  try {
+    const baseUrl = getBaseUrl(url);
+    const robotsUrl = `${baseUrl}/robots.txt`;
+    const response = await fetch(robotsUrl, {
+      headers: { "User-Agent": "SEOAuditBot/1.0" },
+    });
+    if (response.ok) {
+      const content = await response.text();
+      return { exists: true, content: content.slice(0, 2000) };
+    }
+    return { exists: false, error: `Status: ${response.status}` };
+  } catch (err) {
+    return { exists: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
+async function checkSitemap(url: string): Promise<{ exists: boolean; url?: string; error?: string }> {
+  try {
+    const baseUrl = getBaseUrl(url);
+    
+    // Common sitemap locations
+    const sitemapUrls = [
+      `${baseUrl}/sitemap.xml`,
+      `${baseUrl}/sitemap_index.xml`,
+      `${baseUrl}/sitemap/sitemap.xml`,
+    ];
+    
+    for (const sitemapUrl of sitemapUrls) {
+      try {
+        const response = await fetch(sitemapUrl, {
+          headers: { "User-Agent": "SEOAuditBot/1.0" },
+        });
+        if (response.ok) {
+          const contentType = response.headers.get("content-type") || "";
+          const text = await response.text();
+          if (contentType.includes("xml") || text.includes("<?xml") || text.includes("<urlset") || text.includes("<sitemapindex")) {
+            return { exists: true, url: sitemapUrl };
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    return { exists: false, error: "Sitemap tidak ditemukan di lokasi standar" };
+  } catch (err) {
+    return { exists: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
+async function fetchUrlContent(url: string): Promise<string> {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+  
+  if (FIRECRAWL_API_KEY) {
+    try {
+      const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${FIRECRAWL_API_KEY}`,
+        },
+        body: JSON.stringify({
+          url,
+          formats: ["html", "markdown"],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.data?.html || data.data?.markdown || "";
+      }
+    } catch (err) {
+      console.error("Firecrawl error:", err);
+    }
+  }
+
   // Fallback to simple fetch
-   try {
-     const response = await fetch(url, {
-       headers: { "User-Agent": "SEOAuditBot/1.0" },
-     });
-     return await response.text();
-   } catch (err) {
-     console.error("Simple fetch error:", err);
-     throw new Error(`Failed to fetch URL: ${url}`);
-   }
- }
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "SEOAuditBot/1.0" },
+    });
+    return await response.text();
+  } catch (err) {
+    console.error("Simple fetch error:", err);
+    throw new Error(`Failed to fetch URL: ${url}`);
+  }
+}
  
 async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> {
   const PAGESPEED_API_KEY = Deno.env.get("PAGESPEED_API_KEY");
@@ -235,7 +308,7 @@ TARGET KEYWORD:
    "overallScore": <number 0-100>,
    "categories": [
      {
-       "name": "Basic SEO",
+       "name": "SEO Dasar",
        "score": <number 0-100>,
        "items": [
          {
@@ -247,59 +320,95 @@ TARGET KEYWORD:
        ]
      },
      {
-       "name": "Content Quality",
+       "name": "Struktur HTML & Heading",
        "score": <number 0-100>,
        "items": [...]
      },
      {
-       "name": "Technical SEO",
+       "name": "Optimasi Keyword",
+       "score": <number 0-100>,
+       "items": [...]
+     },
+     {
+       "name": "Kualitas Konten",
+       "score": <number 0-100>,
+       "items": [...]
+     },
+     {
+       "name": "Social Media & Sharing",
+       "score": <number 0-100>,
+       "items": [...]
+     },
+     {
+       "name": "SEO Teknis",
        "score": <number 0-100>,
        "items": [...]
      }
    ]
  }
  
-Item SEO Dasar yang perlu dicek (fokus pada keyword utama "${mainKeyword}"):
- - Tag judul (ada, panjang 50-60 karakter, mengandung keyword)
- - Meta deskripsi (ada, panjang 140-160 karakter, menarik)
- - Tag H1 (tunggal, deskriptif, mengandung keyword)
- - Struktur H2-H6 (hierarki yang tepat)
- - Atribut alt gambar (semua gambar memiliki alt text deskriptif)
- - Link internal (keberadaan dan kualitas anchor text)
- - Link eksternal (atribut rel, nofollow jika diperlukan)
-- Keyword utama di judul (cek apakah "${mainKeyword}" muncul di judul)
-- Keyword utama di paragraf pertama (cek apakah "${mainKeyword}" muncul di awal)
-- Keyword utama di URL slug (untuk input URL)
- 
-Item Kualitas Konten yang perlu dicek (optimasi keyword "${mainKeyword}"):
- - Jumlah kata (minimal 300 kata untuk blog post)
-- Kepadatan keyword utama (1-2% penggunaan natural "${mainKeyword}")
-- Penggunaan keyword terkait (cek keberadaan: ${relatedKwList})
-- Keyword di heading (H2-H6 harus mengandung variasi keyword)
- - Skor keterbacaan (sesuai target audiens)
- - Struktur konten (paragraf, list, formatting)
- - Indikator konten unik
- - Kualitas paragraf pertama (hook, penempatan keyword)
-- Keyword LSI (cek istilah yang terkait secara semantik)
-- Cek keyword stuffing (pastikan penggunaan natural, tidak over-optimized)
- 
- Item SEO Teknis yang perlu dicek:
- - Schema markup (keberadaan structured data)
- - Tag canonical (ada dan benar)
- - Meta tag robots (direktif yang tepat)
- - Tag Open Graph (og:title, og:description, og:image)
- - Twitter Card tags
- - Mobile viewport meta
- - Deklarasi bahasa (atribut html lang)
- 
- Jadilah teliti tapi praktis. Untuk setiap item yang gagal, berikan rekomendasi yang actionable dalam Bahasa Indonesia.`;
- 
-   const userPrompt = `Analyze this ${inputType} content for SEO optimization.
+KATEGORI 1 - SEO DASAR (fokus pada keyword utama "${mainKeyword}"):
+- Tag Judul/Title (ada, panjang 50-60 karakter, mengandung keyword)
+- Meta Deskripsi (ada, panjang 140-160 karakter, menarik, mengandung keyword)
+- Tag Canonical (ada dan benar)
+- Meta Robots (direktif yang tepat: index/noindex, follow/nofollow)
+- Viewport Meta (untuk mobile responsiveness)
+- Deklarasi Bahasa (atribut html lang)
 
-Target Main Keyword: "${mainKeyword}"
-Related Keywords: ${relatedKwList}
+KATEGORI 2 - STRUKTUR HTML & HEADING:
+- Tag H1 (HARUS tunggal, deskriptif, WAJIB mengandung keyword "${mainKeyword}")
+- Struktur H2 (apakah ada dan terstruktur dengan baik)
+- Struktur H3-H6 (hierarki yang tepat, tidak loncat level)
+- Heading mengandung keyword (cek apakah H2-H6 mengandung variasi keyword)
+- Urutan hierarki heading (H1 > H2 > H3 > H4, dst - tidak boleh loncat)
+- Jumlah heading yang sesuai dengan panjang konten
+
+KATEGORI 3 - OPTIMASI KEYWORD:
+- Keyword di judul/title (cek apakah "${mainKeyword}" muncul di title tag)
+- Keyword di H1 (WAJIB ada "${mainKeyword}" di H1)
+- Keyword di paragraf pertama (cek apakah "${mainKeyword}" muncul di 100 kata pertama)
+- Keyword di URL/slug (untuk input URL, cek apakah keyword ada di URL)
+- Kepadatan keyword utama (target 1-2% penggunaan natural)
+- Penggunaan keyword terkait (cek keberadaan: ${relatedKwList})
+- Keyword LSI (cek istilah yang terkait secara semantik)
+- Cek keyword stuffing (pastikan tidak over-optimized, max 3%)
+
+KATEGORI 4 - KUALITAS KONTEN:
+- Jumlah kata (minimal 300 kata untuk blog post, 1000+ untuk artikel panjang)
+- Skor keterbacaan (sesuai target audiens)
+- Struktur konten (paragraf, list, formatting)
+- Atribut alt gambar (semua gambar memiliki alt text deskriptif dengan keyword)
+- Link internal (keberadaan dan kualitas anchor text)
+- Link eksternal (atribut rel, authority sites)
+- Kualitas paragraf pertama (hook, penempatan keyword)
+- Indikator konten unik
+
+KATEGORI 5 - SOCIAL MEDIA & SHARING:
+- Open Graph Title (og:title - ada dan mengandung keyword)
+- Open Graph Description (og:description - ada, 140-160 chars)
+- Open Graph Image (og:image - WAJIB ada, URL valid)
+- Open Graph Type (og:type - article, website, dll)
+- Twitter Card Type (twitter:card - summary_large_image recommended)
+- Twitter Title (twitter:title)
+- Twitter Description (twitter:description)
+- Twitter Image (twitter:image - WAJIB ada)
+
+KATEGORI 6 - SEO TEKNIS:
+- Schema Markup/Structured Data (JSON-LD - Article, BreadcrumbList, Organization, dll)
+- Favicon (ada dan valid)
+- HTTPS (koneksi aman)
+- Mobile Friendly indicators
+- Page structure (semantic HTML: header, main, article, section, footer)
  
- ${content.slice(0, 50000)}`;
+Jadilah SANGAT TELITI. Untuk setiap item yang gagal, berikan rekomendasi yang actionable dalam Bahasa Indonesia.
+Periksa setiap elemen dengan seksama dan berikan status yang akurat.`;
+ 
+   const userPrompt = `Analisis konten ${inputType} ini untuk optimasi SEO.
+
+Keyword Utama Target: "${mainKeyword}"
+Keyword Terkait: ${relatedKwList}
+ 
+${content.slice(0, 50000)}`;
  
    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
      method: "POST",
@@ -555,7 +664,8 @@ Guidelines:
 
      let contentToAnalyze = content;
  
-     // If URL, fetch the content first
+     // If URL, fetch the content first and check crawlability
+     let crawlabilityResult: CrawlabilityResult | null = null;
      if (inputType === "url") {
        const urlPattern = /^https?:\/\/.+/i;
        if (!urlPattern.test(content)) {
@@ -564,7 +674,19 @@ Guidelines:
            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
          );
        }
-       contentToAnalyze = await fetchUrlContent(content);
+       
+       // Fetch content and check crawlability in parallel
+       const [fetchedContent, robotsResult, sitemapResult] = await Promise.all([
+         fetchUrlContent(content),
+         checkRobotsTxt(content),
+         checkSitemap(content),
+       ]);
+       
+       contentToAnalyze = fetchedContent;
+       crawlabilityResult = {
+         robotsTxt: robotsResult,
+         sitemap: sitemapResult,
+       };
      }
  
     // Run AI analysis with keywords
@@ -580,6 +702,7 @@ Guidelines:
       JSON.stringify({ 
         result: aiResult,
         pageSpeed: pageSpeedResult,
+        crawlability: crawlabilityResult,
       }),
        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
      );

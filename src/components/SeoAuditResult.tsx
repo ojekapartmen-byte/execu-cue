@@ -1,23 +1,23 @@
- import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
- import { Progress } from "@/components/ui/progress";
- import { Badge } from "@/components/ui/badge";
- import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CheckCircle2, AlertTriangle, XCircle, TrendingUp, Zap, Gauge } from "lucide-react";
- import { cn } from "@/lib/utils";
- 
- interface AuditItem {
-   label: string;
-   status: "pass" | "warning" | "fail";
-   message: string;
-   recommendation?: string;
- }
- 
- interface AuditCategory {
-   name: string;
-   score: number;
-   items: AuditItem[];
- }
- 
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { CheckCircle2, AlertTriangle, XCircle, TrendingUp, Zap, Gauge, Bot, Map, FileSearch } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface AuditItem {
+  label: string;
+  status: "pass" | "warning" | "fail";
+  message: string;
+  recommendation?: string;
+}
+
+interface AuditCategory {
+  name: string;
+  score: number;
+  items: AuditItem[];
+}
+
 interface PageSpeedMetric {
   name: string;
   value: string;
@@ -31,15 +31,29 @@ interface PageSpeedResult {
   opportunities: AuditItem[];
 }
 
- interface AuditResult {
-   overallScore: number;
-   categories: AuditCategory[];
+interface CrawlabilityResult {
+  robotsTxt: {
+    exists: boolean;
+    content?: string;
+    error?: string;
+  };
+  sitemap: {
+    exists: boolean;
+    url?: string;
+    error?: string;
+  };
+}
+
+interface AuditResult {
+  overallScore: number;
+  categories: AuditCategory[];
   pageSpeed?: PageSpeedResult;
- }
- 
- interface SeoAuditResultProps {
-   result: AuditResult;
- }
+  crawlability?: CrawlabilityResult;
+}
+
+interface SeoAuditResultProps {
+  result: AuditResult;
+}
  
  const getScoreColor = (score: number) => {
    if (score >= 80) return "text-green-500";
@@ -101,9 +115,93 @@ interface PageSpeedResult {
                : "Needs attention. Please review the recommendations below."}
            </p>
          </CardContent>
-       </Card>
- 
-      {/* PageSpeed Insights Section */}
+        </Card>
+
+        {/* Crawlability & Indexing Section */}
+        {result.crawlability && (
+          <Card className="overflow-hidden">
+            <div className={cn(
+              "h-2 bg-gradient-to-r",
+              result.crawlability.robotsTxt.exists && result.crawlability.sitemap.exists
+                ? "from-green-500 to-green-400"
+                : result.crawlability.robotsTxt.exists || result.crawlability.sitemap.exists
+                ? "from-yellow-500 to-yellow-400"
+                : "from-red-500 to-red-400"
+            )} />
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <FileSearch className="w-5 h-5 text-primary" />
+                Crawlability & Indexing
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                {/* robots.txt */}
+                <div className={cn(
+                  "p-4 rounded-lg border",
+                  result.crawlability.robotsTxt.exists 
+                    ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+                    : "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
+                )}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Bot className={cn(
+                      "w-8 h-8",
+                      result.crawlability.robotsTxt.exists ? "text-green-500" : "text-red-500"
+                    )} />
+                    <div>
+                      <h4 className="font-semibold text-foreground">robots.txt</h4>
+                      <StatusBadge status={result.crawlability.robotsTxt.exists ? "pass" : "fail"} />
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {result.crawlability.robotsTxt.exists 
+                      ? "File robots.txt ditemukan dan dapat diakses oleh crawler"
+                      : `File robots.txt tidak ditemukan. ${result.crawlability.robotsTxt.error || ""}`}
+                  </p>
+                  {!result.crawlability.robotsTxt.exists && (
+                    <div className="mt-2 p-2 rounded bg-primary/10 border-l-4 border-primary">
+                      <p className="text-xs text-foreground">
+                        <strong>Rekomendasi:</strong> Buat file robots.txt di root domain untuk mengontrol akses crawler
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sitemap */}
+                <div className={cn(
+                  "p-4 rounded-lg border",
+                  result.crawlability.sitemap.exists 
+                    ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+                    : "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
+                )}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Map className={cn(
+                      "w-8 h-8",
+                      result.crawlability.sitemap.exists ? "text-green-500" : "text-red-500"
+                    )} />
+                    <div>
+                      <h4 className="font-semibold text-foreground">Sitemap XML</h4>
+                      <StatusBadge status={result.crawlability.sitemap.exists ? "pass" : "fail"} />
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {result.crawlability.sitemap.exists 
+                      ? `Sitemap ditemukan: ${result.crawlability.sitemap.url}`
+                      : `Sitemap tidak ditemukan. ${result.crawlability.sitemap.error || ""}`}
+                  </p>
+                  {!result.crawlability.sitemap.exists && (
+                    <div className="mt-2 p-2 rounded bg-primary/10 border-l-4 border-primary">
+                      <p className="text-xs text-foreground">
+                        <strong>Rekomendasi:</strong> Buat sitemap.xml untuk membantu search engine mengindeks halaman website
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
       {result.pageSpeed && (
         <Card className="overflow-hidden">
           <div className={cn("h-2 bg-gradient-to-r", getScoreGradient(result.pageSpeed.performanceScore))} />
