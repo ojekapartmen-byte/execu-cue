@@ -1,4 +1,4 @@
-import { Newspaper, PenSquare, Sparkles } from "lucide-react";
+ import { Newspaper, PenSquare, Sparkles, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSEO, SEO_CONFIG } from "@/hooks/useSEO";
@@ -111,6 +111,41 @@ const LandingPage = () => {
                 </ul>
                 <div className="inline-flex items-center gap-2 text-primary font-medium group-hover:gap-3 transition-all">
                   Mulai Buat Artikel
+                  <span aria-hidden="true">→</span>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          {/* SEO Audit Card */}
+          <Link to="/seo-audit" className="group md:col-span-2">
+            <Card className="h-full transition-all duration-300 hover:shadow-xl hover:border-primary/50 hover:-translate-y-1">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                  <Search className="w-8 h-8 text-primary-foreground" />
+                </div>
+                <CardTitle className="font-display text-2xl">SEO On-Page Audit</CardTitle>
+                <CardDescription className="text-base">
+                  Analisis SEO lengkap dengan rekomendasi perbaikan
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <ul className="text-sm text-muted-foreground space-y-2 mb-6">
+                  <li className="flex items-center justify-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Input URL website, halaman, teks, atau HTML
+                  </li>
+                  <li className="flex items-center justify-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Audit lengkap: Basic SEO, Content Quality, Technical SEO
+                  </li>
+                  <li className="flex items-center justify-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Score & rekomendasi perbaikan actionable
+                  </li>
+                </ul>
+                <div className="inline-flex items-center gap-2 text-primary font-medium group-hover:gap-3 transition-all">
+                  Mulai Audit SEO
                   <span aria-hidden="true">→</span>
                 </div>
               </CardContent>
