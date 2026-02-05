@@ -10,6 +10,8 @@ interface AuditItem {
   status: "pass" | "warning" | "fail";
   message: string;
   recommendation?: string;
+  currentContent?: string;
+  suggestedContent?: string;
 }
 
 interface AuditCategory {
@@ -321,13 +323,38 @@ interface SeoAuditResultProps {
                              <StatusBadge status={item.status} />
                            </div>
                            <p className="text-sm text-muted-foreground mt-1">{item.message}</p>
-                           {item.recommendation && (
-                             <div className="mt-2 p-3 rounded bg-primary/10 border-l-4 border-primary">
-                               <p className="text-sm text-foreground">
-                                 <strong>Recommendation:</strong> {item.recommendation}
-                               </p>
-                             </div>
-                           )}
+                            {item.recommendation && (
+                              <div className="mt-2 p-3 rounded bg-primary/10 border-l-4 border-primary">
+                                <p className="text-sm text-foreground">
+                                  <strong>Recommendation:</strong> {item.recommendation}
+                                </p>
+                              </div>
+                            )}
+                            {/* Current vs Suggested Content */}
+                            {(item.currentContent || item.suggestedContent) && (
+                              <div className="mt-3 space-y-3">
+                                {item.currentContent && (
+                                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                                    <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1 uppercase tracking-wide">
+                                      Konten Saat Ini
+                                    </p>
+                                    <p className="text-sm text-foreground font-mono bg-red-100/50 dark:bg-red-900/30 p-2 rounded">
+                                      {item.currentContent}
+                                    </p>
+                                  </div>
+                                )}
+                                {item.suggestedContent && (
+                                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                    <p className="text-xs font-semibold text-green-600 dark:text-green-400 mb-1 uppercase tracking-wide">
+                                      Rekomendasi Konten Pengganti
+                                    </p>
+                                    <p className="text-sm text-foreground font-mono bg-green-100/50 dark:bg-green-900/30 p-2 rounded">
+                                      {item.suggestedContent}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                          </div>
                        </div>
                      ))}

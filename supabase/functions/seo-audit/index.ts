@@ -6,12 +6,14 @@
      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
  };
  
- interface AuditItem {
-   label: string;
-   status: "pass" | "warning" | "fail";
-   message: string;
-   recommendation?: string;
- }
+interface AuditItem {
+  label: string;
+  status: "pass" | "warning" | "fail";
+  message: string;
+  recommendation?: string;
+  currentContent?: string;
+  suggestedContent?: string;
+}
  
  interface AuditCategory {
    name: string;
@@ -315,7 +317,9 @@ TARGET KEYWORD:
            "label": "<element name>",
            "status": "<pass|warning|fail>",
            "message": "<current state description>",
-           "recommendation": "<optional improvement suggestion>"
+           "recommendation": "<optional improvement suggestion>",
+           "currentContent": "<konten yang ada saat ini, jika ada dan relevan>",
+           "suggestedContent": "<konten pengganti yang disarankan AI, WAJIB diisi untuk status warning/fail>"
          }
        ]
      },
@@ -346,6 +350,15 @@ TARGET KEYWORD:
      }
    ]
  }
+
+PENTING UNTUK KONTEN PENGGANTI:
+- Untuk setiap item dengan status "warning" atau "fail", WAJIB sertakan field "suggestedContent" berisi konten pengganti yang sudah dioptimasi
+- Field "currentContent" berisi konten yang ditemukan saat ini (jika ada)
+- Konten pengganti harus:
+  - Mengandung keyword utama "${mainKeyword}" secara natural
+  - Sesuai dengan best practice SEO
+  - Siap untuk langsung digunakan (copy-paste ready)
+  - Panjang yang sesuai standar SEO (title 50-60 karakter, meta desc 140-160 karakter, dll)
  
 KATEGORI 1 - SEO DASAR (fokus pada keyword utama "${mainKeyword}"):
 - Tag Judul/Title (ada, panjang 50-60 karakter, mengandung keyword)
