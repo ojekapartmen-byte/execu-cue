@@ -19,6 +19,19 @@
    items: AuditItem[];
  }
  
+interface PageSpeedMetric {
+  name: string;
+  value: string;
+  score: number;
+  status: "pass" | "warning" | "fail";
+}
+
+interface PageSpeedResult {
+  performanceScore: number;
+  metrics: PageSpeedMetric[];
+  opportunities: AuditItem[];
+}
+
  interface AuditResult {
    overallScore: number;
    categories: AuditCategory[];
@@ -50,7 +63,7 @@
      }
    }
  
-   // Fallback: simple fetch
+  // Fallback to simple fetch
    try {
      const response = await fetch(url, {
        headers: { "User-Agent": "SEOAuditBot/1.0" },
@@ -62,6 +75,139 @@
    }
  }
  
+async function fetchPageSpeedData(url: string): Promise<PageSpeedResult | null> {
+  const PAGESPEED_API_KEY = Deno.env.get("PAGESPEED_API_KEY");
+  
+  if (!PAGESPEED_API_KEY) {
+    console.log("PAGESPEED_API_KEY not configured, skipping PageSpeed analysis");
+    return null;
+  }
+
+  try {
+    const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=${PAGESPEED_API_KEY}&category=performance&category=accessibility&category=best-practices&category=seo`;
+    
+    const response = await fetch(apiUrl);
+    
+    if (!response.ok) {
+      console.error("PageSpeed API error:", response.status, await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const lighthouse = data.lighthouseResult;
+    
+    if (!lighthouse) {
+      return null;
+    }
+
+    const getStatus = (score: number): "pass" | "warning" | "fail" => {
+      if (score >= 0.9) return "pass";
+      if (score >= 0.5) return "warning";
+      return "fail";
+    };
+
+    const audits = lighthouse.audits || {};
+    const metrics: PageSpeedMetric[] = [];
+
+    if (audits["largest-contentful-paint"]) {
+      const lcp = audits["largest-contentful-paint"];
+      metrics.push({
+        name: "Largest Contentful Paint (LCP)",
+        value: lcp.displayValue || "N/A",
+        score: Math.round((lcp.score || 0) * 100),
+        status: getStatus(lcp.score || 0),
+      });
+    }
+
+    if (audits["total-blocking-time"]) {
+      const tbt = audits["total-blocking-time"];
+      metrics.push({
+        name: "Total Blocking Time (TBT)",
+        value: tbt.displayValue || "N/A",
+        score: Math.round((tbt.score || 0) * 100),
+        status: getStatus(tbt.score || 0),
+      });
+    }
+
+    if (audits["cumulative-layout-shift"]) {
+      const cls = audits["cumulative-layout-shift"];
+      metrics.push({
+        name: "Cumulative Layout Shift (CLS)",
+        value: cls.displayValue || "N/A",
+        score: Math.round((cls.score || 0) * 100),
+        status: getStatus(cls.score || 0),
+      });
+    }
+
+    if (audits["first-contentful-paint"]) {
+      const fcp = audits["first-contentful-paint"];
+      metrics.push({
+        name: "First Contentful Paint (FCP)",
+        value: fcp.displayValue || "N/A",
+        score: Math.round((fcp.score || 0) * 100),
+        status: getStatus(fcp.score || 0),
+      });
+    }
+
+    if (audits["speed-index"]) {
+      const si = audits["speed-index"];
+      metrics.push({
+        name: "Speed Index",
+        value: si.displayValue || "N/A",
+        score: Math.round((si.score || 0) * 100),
+        status: getStatus(si.score || 0),
+      });
+    }
+
+    if (audits["interactive"]) {
+      const tti = audits["interactive"];
+      metrics.push({
+        name: "Time to Interactive (TTI)",
+        value: tti.displayValue || "N/A",
+        score: Math.round((tti.score || 0) * 100),
+        status: getStatus(tti.score || 0),
+      });
+    }
+
+    const opportunities: AuditItem[] = [];
+    const opportunityAudits = [
+      "render-blocking-resources",
+      "unused-css-rules",
+      "unused-javascript",
+      "modern-image-formats",
+      "uses-optimized-images",
+      "uses-text-compression",
+      "uses-responsive-images",
+      "efficient-animated-content",
+      "duplicated-javascript",
+      "legacy-javascript",
+    ];
+
+    for (const auditId of opportunityAudits) {
+      const audit = audits[auditId];
+      if (audit && audit.score !== null && audit.score < 1) {
+        opportunities.push({
+          label: audit.title || auditId,
+          status: getStatus(audit.score || 0),
+          message: audit.displayValue || audit.description || "",
+          recommendation: audit.description,
+        });
+      }
+    }
+
+    const performanceScore = Math.round((lighthouse.categories?.performance?.score || 0) * 100);
+
+    return {
+      performanceScore,
+      metrics,
+      opportunities,
+    };
+  } catch (err) {
+    console.error("PageSpeed fetch error:", err);
+    return null;
+  }
+}
+
  async function analyzeWithAI(content: string, inputType: string): Promise<AuditResult> {
    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
    if (!LOVABLE_API_KEY) {
@@ -215,10 +361,20 @@
        contentToAnalyze = await fetchUrlContent(content);
      }
  
-     const result = await analyzeWithAI(contentToAnalyze, inputType);
+    // Run AI analysis
+    const aiResult = await analyzeWithAI(contentToAnalyze, inputType);
+
+    // If URL input, also fetch PageSpeed data
+    let pageSpeedResult: PageSpeedResult | null = null;
+    if (inputType === "url") {
+      pageSpeedResult = await fetchPageSpeedData(content);
+    }
  
      return new Response(
-       JSON.stringify({ result }),
+      JSON.stringify({ 
+        result: aiResult,
+        pageSpeed: pageSpeedResult,
+      }),
        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
      );
    } catch (err) {
