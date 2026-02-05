@@ -1,16 +1,20 @@
- import { useState } from "react";
- import { Link } from "react-router-dom";
-import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag, Sparkles, Wand2 } from "lucide-react";
- import { Button } from "@/components/ui/button";
- import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
- import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
- import { Input } from "@/components/ui/input";
- import { Textarea } from "@/components/ui/textarea";
- import { RichTextEditor } from "@/components/RichTextEditor";
- import { SeoAuditResult } from "@/components/SeoAuditResult";
- import { useSEO, SEO_CONFIG } from "@/hooks/useSEO";
- import { supabase } from "@/integrations/supabase/client";
- import { toast } from "sonner";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag, Sparkles, Wand2, BookOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/RichTextEditor";
+import { SeoAuditResult } from "@/components/SeoAuditResult";
+import { useSEO, SEO_CONFIG } from "@/hooks/useSEO";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useArticles, Article } from "@/hooks/useArticles";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { format } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
  
 interface CrawlabilityResult {
   robotsTxt: {
@@ -55,36 +59,54 @@ interface AuditResult {
   crawlability?: CrawlabilityResult;
 }
  
- const SeoAudit = () => {
-   useSEO(SEO_CONFIG.seoAudit);
- 
-   const [activeTab, setActiveTab] = useState<"website" | "page" | "text" | "html">("website");
-   const [websiteUrl, setWebsiteUrl] = useState("");
-   const [pageUrl, setPageUrl] = useState("");
-   const [articleText, setArticleText] = useState("");
-   const [htmlCode, setHtmlCode] = useState("");
-   const [isLoading, setIsLoading] = useState(false);
-   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
+const SeoAudit = () => {
+  useSEO(SEO_CONFIG.seoAudit);
+  const location = useLocation();
+  const { articles, isLoading: isLoadingArticles } = useArticles();
+
+  const [activeTab, setActiveTab] = useState<"website" | "page" | "text" | "html" | "article">("website");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [pageUrl, setPageUrl] = useState("");
+  const [articleText, setArticleText] = useState("");
+  const [htmlCode, setHtmlCode] = useState("");
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [mainKeyword, setMainKeyword] = useState("");
   const [relatedKeywords, setRelatedKeywords] = useState("");
   const [isDetecting, setIsDetecting] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([]);
+
+  // Handle incoming article from navigation state
+  useEffect(() => {
+    if (location.state?.article) {
+      const article = location.state.article as Article;
+      setSelectedArticle(article);
+      setActiveTab("article");
+      // Extract topic as initial keyword
+      if (article.topic) {
+        setMainKeyword(article.topic);
+      }
+    }
+  }, [location.state]);
  
-   const getInputContent = () => {
-     switch (activeTab) {
-       case "website":
-         return { type: "url", content: websiteUrl };
-       case "page":
-         return { type: "url", content: pageUrl };
-       case "text":
-         return { type: "text", content: articleText };
-       case "html":
-         return { type: "html", content: htmlCode };
-       default:
-         return null;
-     }
-   };
+  const getInputContent = () => {
+    switch (activeTab) {
+      case "website":
+        return { type: "url", content: websiteUrl };
+      case "page":
+        return { type: "url", content: pageUrl };
+      case "text":
+        return { type: "text", content: articleText };
+      case "html":
+        return { type: "html", content: htmlCode };
+      case "article":
+        return { type: "text", content: selectedArticle?.content || "" };
+      default:
+        return null;
+    }
+  };
  
    const isInputValid = () => {
      const input = getInputContent();
@@ -326,25 +348,29 @@ interface AuditResult {
               </div>
             </div>
 
-               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-                 <TabsList className="grid w-full grid-cols-4 mb-6">
-                   <TabsTrigger value="website" className="flex items-center gap-2">
-                     <Globe className="w-4 h-4" />
-                     <span className="hidden sm:inline">Website</span>
-                   </TabsTrigger>
-                   <TabsTrigger value="page" className="flex items-center gap-2">
-                     <FileText className="w-4 h-4" />
-                     <span className="hidden sm:inline">Page</span>
-                   </TabsTrigger>
-                   <TabsTrigger value="text" className="flex items-center gap-2">
-                     <FileText className="w-4 h-4" />
-                     <span className="hidden sm:inline">Text</span>
-                   </TabsTrigger>
-                   <TabsTrigger value="html" className="flex items-center gap-2">
-                     <Code className="w-4 h-4" />
-                     <span className="hidden sm:inline">HTML</span>
-                   </TabsTrigger>
-                 </TabsList>
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+                <TabsList className="grid w-full grid-cols-5 mb-6">
+                  <TabsTrigger value="website" className="flex items-center gap-2">
+                    <Globe className="w-4 h-4" />
+                    <span className="hidden sm:inline">Website</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="page" className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    <span className="hidden sm:inline">Page</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="text" className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    <span className="hidden sm:inline">Text</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="html" className="flex items-center gap-2">
+                    <Code className="w-4 h-4" />
+                    <span className="hidden sm:inline">HTML</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="article" className="flex items-center gap-2">
+                    <BookOpen className="w-4 h-4" />
+                    <span className="hidden sm:inline">Artikel</span>
+                  </TabsTrigger>
+                </TabsList>
  
                  <TabsContent value="website" className="space-y-4">
                    <div>
@@ -391,22 +417,85 @@ interface AuditResult {
                    </div>
                  </TabsContent>
  
-                 <TabsContent value="html" className="space-y-4">
-                   <div>
-                     <label className="text-sm font-medium text-foreground mb-2 block">
-                       Kode HTML
-                     </label>
-                     <Textarea
-                       placeholder="<html><head>...</head><body>...</body></html>"
-                       value={htmlCode}
-                       onChange={(e) => setHtmlCode(e.target.value)}
-                       className="min-h-[300px] font-mono text-sm"
-                     />
-                     <p className="text-xs text-muted-foreground mt-1">
-                       Paste kode HTML lengkap halaman untuk audit
-                     </p>
-                   </div>
-                 </TabsContent>
+                <TabsContent value="html" className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      Kode HTML
+                    </label>
+                    <Textarea
+                      placeholder="<html><head>...</head><body>...</body></html>"
+                      value={htmlCode}
+                      onChange={(e) => setHtmlCode(e.target.value)}
+                      className="min-h-[300px] font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Paste kode HTML lengkap halaman untuk audit
+                    </p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="article" className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      Pilih Artikel dari History
+                    </label>
+                    {isLoadingArticles ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                        <span className="ml-2 text-muted-foreground">Memuat artikel...</span>
+                      </div>
+                    ) : articles.length === 0 ? (
+                      <div className="text-center py-8 border border-dashed rounded-lg">
+                        <BookOpen className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+                        <p className="text-muted-foreground mb-3">Belum ada artikel tersimpan</p>
+                        <Link to="/create-article">
+                          <Button variant="outline" size="sm">
+                            Buat Artikel Baru
+                          </Button>
+                        </Link>
+                      </div>
+                    ) : (
+                      <ScrollArea className="h-[300px] border rounded-lg">
+                        <div className="p-2 space-y-2">
+                          {articles.map((article) => {
+                            const title = article.content.split('\n').find(l => l.startsWith('#'))?.replace(/^#+\s*/, '') || article.topic;
+                            const isSelected = selectedArticle?.id === article.id;
+                            return (
+                              <button
+                                key={article.id}
+                                onClick={() => {
+                                  setSelectedArticle(article);
+                                  if (article.topic && !mainKeyword) {
+                                    setMainKeyword(article.topic);
+                                  }
+                                }}
+                                className={`w-full text-left p-3 rounded-lg border transition-all ${
+                                  isSelected 
+                                    ? 'bg-primary/10 border-primary' 
+                                    : 'bg-muted/50 border-transparent hover:bg-muted'
+                                }`}
+                              >
+                                <p className="font-medium text-foreground line-clamp-1">{title}</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {format(new Date(article.created_at), "d MMM yyyy, HH:mm", { locale: idLocale })}
+                                  {article.topic && ` • ${article.topic.slice(0, 30)}...`}
+                                </p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                    )}
+                    {selectedArticle && (
+                      <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                        <p className="text-sm font-medium text-primary">Artikel terpilih:</p>
+                        <p className="text-sm text-foreground line-clamp-2 mt-1">
+                          {selectedArticle.content.split('\n').find(l => l.startsWith('#'))?.replace(/^#+\s*/, '') || selectedArticle.topic}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
                </Tabs>
  
                <div className="mt-6 flex justify-end">
