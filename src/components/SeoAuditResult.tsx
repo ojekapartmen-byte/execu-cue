@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CheckCircle2, AlertTriangle, XCircle, TrendingUp, Zap, Gauge, Bot, Map, FileSearch } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CheckCircle2, AlertTriangle, XCircle, TrendingUp, Zap, Gauge, Bot, Map, FileSearch, Copy, Eye, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface AuditItem {
   label: string;
@@ -55,6 +59,9 @@ interface AuditResult {
 
 interface SeoAuditResultProps {
   result: AuditResult;
+  onApplyRecommendation?: (currentContent: string, suggestedContent: string, label: string) => void;
+  onViewEdited?: () => void;
+  appliedItems?: Set<string>;
 }
  
  const getScoreColor = (score: number) => {
@@ -90,7 +97,7 @@ interface SeoAuditResultProps {
    return <Badge className={cn("font-medium", className)}>{label}</Badge>;
  };
  
- export const SeoAuditResult = ({ result }: SeoAuditResultProps) => {
+ export const SeoAuditResult = ({ result, onApplyRecommendation, onViewEdited, appliedItems = new Set() }: SeoAuditResultProps) => {
    return (
      <div className="space-y-6 animate-fade-in">
        {/* Overall Score */}
@@ -353,8 +360,34 @@ interface SeoAuditResultProps {
                                     </p>
                                   </div>
                                 )}
-                              </div>
-                            )}
+                                {/* Action Buttons */}
+                                {item.suggestedContent && item.currentContent && (
+                                  <div className="flex items-center gap-2 mt-3">
+                                    {appliedItems.has(`${catIndex}-${itemIndex}`) ? (
+                                      <Button variant="outline" size="sm" disabled className="text-green-600">
+                                        <CheckCheck className="w-4 h-4 mr-1" />
+                                        Sudah Diterapkan
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => onApplyRecommendation?.(item.currentContent!, item.suggestedContent!, item.label)}
+                                      >
+                                        <Copy className="w-4 h-4 mr-1" />
+                                        Terapkan Rekomendasi
+                                      </Button>
+                                    )}
+                                    {appliedItems.size > 0 && onViewEdited && (
+                                      <Button variant="outline" size="sm" onClick={onViewEdited}>
+                                        <Eye className="w-4 h-4 mr-1" />
+                                        Lihat Hasil Editan
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+                               </div>
+                             )}
                          </div>
                        </div>
                      ))}

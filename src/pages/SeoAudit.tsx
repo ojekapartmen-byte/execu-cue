@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowLeft, Globe, FileText, Code, Search, Loader2, Tag, Sparkles, Wand2, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +40,8 @@ interface AuditResult {
       status: "pass" | "warning" | "fail";
       message: string;
       recommendation?: string;
+      currentContent?: string;
+      suggestedContent?: string;
     }[];
   }[];
   pageSpeed?: {
@@ -77,6 +80,44 @@ const SeoAudit = () => {
   const [isDetecting, setIsDetecting] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([]);
+  const [appliedItems, setAppliedItems] = useState<Set<string>>(new Set());
+  const [editedContent, setEditedContent] = useState<string>("");
+  const [showEditedDialog, setShowEditedDialog] = useState(false);
+
+  const handleApplyRecommendation = useCallback((currentContent: string, suggestedContent: string, label: string) => {
+    // Get the source content
+    const input = getInputContent();
+    if (!input) return;
+
+    let content = editedContent || input.content;
+    // Replace current with suggested in the content
+    if (content.includes(currentContent)) {
+      content = content.replace(currentContent, suggestedContent);
+    }
+    setEditedContent(content);
+
+    // Track applied item
+    setAppliedItems(prev => {
+      const next = new Set(prev);
+      // Find the matching item key
+      if (auditResult) {
+        auditResult.categories.forEach((cat, catIdx) => {
+          cat.items.forEach((item, itemIdx) => {
+            if (item.label === label && item.currentContent === currentContent) {
+              next.add(`${catIdx}-${itemIdx}`);
+            }
+          });
+        });
+      }
+      return next;
+    });
+
+    toast.success(`Rekomendasi "${label}" berhasil diterapkan`);
+  }, [editedContent, auditResult]);
+
+  const handleViewEdited = useCallback(() => {
+    setShowEditedDialog(true);
+  }, []);
 
   // Handle incoming article from navigation state
   useEffect(() => {
@@ -120,8 +161,10 @@ const SeoAudit = () => {
        return;
      }
  
-     setIsLoading(true);
-     setAuditResult(null);
+      setIsLoading(true);
+      setAuditResult(null);
+      setAppliedItems(new Set());
+      setEditedContent("");
  
      try {
        const { data, error } = await supabase.functions.invoke("seo-audit", {
@@ -521,7 +564,33 @@ const SeoAudit = () => {
            </Card>
  
            {/* Results Section */}
-           {auditResult && <SeoAuditResult result={auditResult} />}
+           {auditResult && (
+             <SeoAuditResult
+               result={auditResult}
+               onApplyRecommendation={handleApplyRecommendation}
+               onViewEdited={handleViewEdited}
+               appliedItems={appliedItems}
+             />
+           )}
+
+           {/* Edited Content Dialog */}
+           <Dialog open={showEditedDialog} onOpenChange={setShowEditedDialog}>
+             <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+               <DialogHeader>
+                 <DialogTitle>Hasil Editan Konten</DialogTitle>
+               </DialogHeader>
+               <div className="prose prose-sm dark:prose-invert max-w-none">
+                 {editedContent ? (
+                   <div
+                     className="p-4 rounded-lg bg-muted/50 border border-border font-mono text-sm whitespace-pre-wrap"
+                     dangerouslySetInnerHTML={{ __html: editedContent }}
+                   />
+                 ) : (
+                   <p className="text-muted-foreground">Belum ada rekomendasi yang diterapkan.</p>
+                 )}
+               </div>
+             </DialogContent>
+           </Dialog>
          </div>
        </main>
      </div>
