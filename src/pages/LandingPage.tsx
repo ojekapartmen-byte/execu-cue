@@ -1,4 +1,4 @@
- import { Newspaper, PenSquare, Sparkles, Search } from "lucide-react";
+ import { Newspaper, PenSquare, Sparkles, Search, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSEO, SEO_CONFIG } from "@/hooks/useSEO";
@@ -46,7 +46,7 @@ const LandingPage = () => {
         </section>
 
         {/* Main Menu Cards */}
-        <section className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto" aria-label="Main features">
+        <section className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto" aria-label="Main features">
           {/* Daily Digest Card */}
           <Link to="/daily-digest" className="group">
             <Card className="h-full transition-all duration-300 hover:shadow-xl hover:border-primary/50 hover:-translate-y-1">
@@ -118,7 +118,7 @@ const LandingPage = () => {
           </Link>
 
           {/* SEO Audit Card */}
-          <Link to="/seo-audit" className="group md:col-span-2">
+          <Link to="/seo-audit" className="group">
             <Card className="h-full transition-all duration-300 hover:shadow-xl hover:border-primary/50 hover:-translate-y-1">
               <CardHeader className="text-center pb-4">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
@@ -146,6 +146,41 @@ const LandingPage = () => {
                 </ul>
                 <div className="inline-flex items-center gap-2 text-primary font-medium group-hover:gap-3 transition-all">
                   Mulai Audit SEO
+                  <span aria-hidden="true">→</span>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          {/* Keyword Research Card */}
+          <Link to="/keyword-research" className="group">
+            <Card className="h-full transition-all duration-300 hover:shadow-xl hover:border-primary/50 hover:-translate-y-1">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                  <TrendingUp className="w-8 h-8 text-primary-foreground" />
+                </div>
+                <CardTitle className="font-display text-2xl">Riset Keyword Potential</CardTitle>
+                <CardDescription className="text-base">
+                  Temukan keyword potensial dengan analisis AI
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <ul className="text-sm text-muted-foreground space-y-2 mb-6">
+                  <li className="flex items-center justify-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Google Autocomplete suggestions
+                  </li>
+                  <li className="flex items-center justify-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    SERP competitor analysis
+                  </li>
+                  <li className="flex items-center justify-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Keyword clusters & content gaps
+                  </li>
+                </ul>
+                <div className="inline-flex items-center gap-2 text-primary font-medium group-hover:gap-3 transition-all">
+                  Mulai Riset Keyword
                   <span aria-hidden="true">→</span>
                 </div>
               </CardContent>

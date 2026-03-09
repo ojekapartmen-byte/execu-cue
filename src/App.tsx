@@ -8,7 +8,8 @@ import Index from "./pages/Index";
 import CreateArticle from "./pages/CreateArticle";
 import ArticleHistory from "./pages/ArticleHistory";
 import NotFound from "./pages/NotFound";
- import SeoAudit from "./pages/SeoAudit";
+import SeoAudit from "./pages/SeoAudit";
+import KeywordResearch from "./pages/KeywordResearch";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/create-article" element={<CreateArticle />} />
           <Route path="/article-history" element={<ArticleHistory />} />
           <Route path="/seo-audit" element={<SeoAudit />} />
+          <Route path="/keyword-research" element={<KeywordResearch />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
