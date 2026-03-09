@@ -85,25 +85,23 @@ const SeoAudit = () => {
   const [showEditedDialog, setShowEditedDialog] = useState(false);
 
   const handleApplyRecommendation = useCallback((currentContent: string, suggestedContent: string, label: string) => {
-    // Get the source content
     const input = getInputContent();
     if (!input) return;
 
     let content = editedContent || input.content;
-    // Replace current with suggested in the content
-    if (content.includes(currentContent)) {
+    if (currentContent && content.includes(currentContent)) {
       content = content.replace(currentContent, suggestedContent);
+    } else {
+      content = content + "\n" + suggestedContent;
     }
     setEditedContent(content);
 
-    // Track applied item
     setAppliedItems(prev => {
       const next = new Set(prev);
-      // Find the matching item key
       if (auditResult) {
         auditResult.categories.forEach((cat, catIdx) => {
           cat.items.forEach((item, itemIdx) => {
-            if (item.label === label && item.currentContent === currentContent) {
+            if (item.label === label && item.suggestedContent === suggestedContent) {
               next.add(`${catIdx}-${itemIdx}`);
             }
           });
@@ -114,6 +112,35 @@ const SeoAudit = () => {
 
     toast.success(`Rekomendasi "${label}" berhasil diterapkan`);
   }, [editedContent, auditResult]);
+
+  const handleApplyAll = useCallback(() => {
+    if (!auditResult) return;
+    const input = getInputContent();
+    if (!input) return;
+
+    let content = editedContent || input.content;
+    const newApplied = new Set(appliedItems);
+    let count = 0;
+
+    auditResult.categories.forEach((cat, catIdx) => {
+      cat.items.forEach((item, itemIdx) => {
+        const key = `${catIdx}-${itemIdx}`;
+        if (item.suggestedContent && !newApplied.has(key)) {
+          if (item.currentContent && content.includes(item.currentContent)) {
+            content = content.replace(item.currentContent, item.suggestedContent);
+          } else {
+            content = content + "\n" + item.suggestedContent;
+          }
+          newApplied.add(key);
+          count++;
+        }
+      });
+    });
+
+    setEditedContent(content);
+    setAppliedItems(newApplied);
+    toast.success(`${count} rekomendasi berhasil diterapkan sekaligus!`);
+  }, [editedContent, auditResult, appliedItems]);
 
   const handleViewEdited = useCallback(() => {
     setShowEditedDialog(true);
@@ -565,12 +592,13 @@ const SeoAudit = () => {
  
            {/* Results Section */}
            {auditResult && (
-             <SeoAuditResult
-               result={auditResult}
-               onApplyRecommendation={handleApplyRecommendation}
-               onViewEdited={handleViewEdited}
-               appliedItems={appliedItems}
-             />
+              <SeoAuditResult
+                result={auditResult}
+                onApplyRecommendation={handleApplyRecommendation}
+                onApplyAll={handleApplyAll}
+                onViewEdited={handleViewEdited}
+                appliedItems={appliedItems}
+              />
            )}
 
            {/* Edited Content Dialog */}

@@ -4,8 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, AlertTriangle, XCircle, TrendingUp, Zap, Gauge, Bot, Map, FileSearch, Copy, Eye, CheckCheck } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, TrendingUp, Zap, Gauge, Bot, Map, FileSearch, Copy, Eye, CheckCheck, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -60,6 +59,7 @@ interface AuditResult {
 interface SeoAuditResultProps {
   result: AuditResult;
   onApplyRecommendation?: (currentContent: string, suggestedContent: string, label: string) => void;
+  onApplyAll?: () => void;
   onViewEdited?: () => void;
   appliedItems?: Set<string>;
 }
@@ -96,8 +96,22 @@ interface SeoAuditResultProps {
    const { label, className } = variants[status];
    return <Badge className={cn("font-medium", className)}>{label}</Badge>;
  };
+
+// Count total actionable items
+const countActionableItems = (categories: AuditCategory[]) => {
+  let total = 0;
+  categories.forEach(cat => {
+    cat.items.forEach(item => {
+      if (item.suggestedContent) total++;
+    });
+  });
+  return total;
+};
  
- export const SeoAuditResult = ({ result, onApplyRecommendation, onViewEdited, appliedItems = new Set() }: SeoAuditResultProps) => {
+ export const SeoAuditResult = ({ result, onApplyRecommendation, onApplyAll, onViewEdited, appliedItems = new Set() }: SeoAuditResultProps) => {
+   const totalActionable = countActionableItems(result.categories);
+   const totalApplied = appliedItems.size;
+
    return (
      <div className="space-y-6 animate-fade-in">
        {/* Overall Score */}
@@ -300,7 +314,30 @@ interface SeoAuditResultProps {
        {/* Detailed Results */}
        <Card>
          <CardHeader>
-           <CardTitle>Detailed Audit Results</CardTitle>
+           <CardTitle className="flex items-center justify-between flex-wrap gap-3">
+             <span>Detailed Audit Results</span>
+             <div className="flex items-center gap-2">
+               {totalApplied > 0 && onViewEdited && (
+                 <Button variant="outline" size="sm" onClick={onViewEdited}>
+                   <Eye className="w-4 h-4 mr-1" />
+                   Lihat Hasil Editan ({totalApplied})
+                 </Button>
+               )}
+               {totalActionable > 0 && onApplyAll && (
+                 totalApplied >= totalActionable ? (
+                   <Button variant="outline" size="sm" disabled className="text-green-600">
+                     <CheckCheck className="w-4 h-4 mr-1" />
+                     Semua Diterapkan ({totalApplied}/{totalActionable})
+                   </Button>
+                 ) : (
+                   <Button variant="default" size="sm" onClick={onApplyAll}>
+                     <PlayCircle className="w-4 h-4 mr-1" />
+                     Terapkan Semua Rekomendasi ({totalActionable - totalApplied} tersisa)
+                   </Button>
+                 )
+               )}
+             </div>
+           </CardTitle>
          </CardHeader>
          <CardContent>
            <Accordion type="multiple" className="w-full">
@@ -360,34 +397,28 @@ interface SeoAuditResultProps {
                                     </p>
                                   </div>
                                 )}
-                                {/* Action Buttons */}
-                                {item.suggestedContent && item.currentContent && (
-                                  <div className="flex items-center gap-2 mt-3">
-                                    {appliedItems.has(`${catIndex}-${itemIndex}`) ? (
-                                      <Button variant="outline" size="sm" disabled className="text-green-600">
-                                        <CheckCheck className="w-4 h-4 mr-1" />
-                                        Sudah Diterapkan
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        variant="default"
-                                        size="sm"
-                                        onClick={() => onApplyRecommendation?.(item.currentContent!, item.suggestedContent!, item.label)}
-                                      >
-                                        <Copy className="w-4 h-4 mr-1" />
-                                        Terapkan Rekomendasi
-                                      </Button>
-                                    )}
-                                    {appliedItems.size > 0 && onViewEdited && (
-                                      <Button variant="outline" size="sm" onClick={onViewEdited}>
-                                        <Eye className="w-4 h-4 mr-1" />
-                                        Lihat Hasil Editan
-                                      </Button>
-                                    )}
-                                  </div>
+                              </div>
+                            )}
+                            {/* Action Buttons - shown for ALL items with suggestedContent */}
+                            {item.suggestedContent && (
+                              <div className="flex items-center gap-2 mt-3">
+                                {appliedItems.has(`${catIndex}-${itemIndex}`) ? (
+                                  <Button variant="outline" size="sm" disabled className="text-green-600">
+                                    <CheckCheck className="w-4 h-4 mr-1" />
+                                    Sudah Diterapkan
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => onApplyRecommendation?.(item.currentContent || "", item.suggestedContent!, item.label)}
+                                  >
+                                    <Copy className="w-4 h-4 mr-1" />
+                                    Terapkan Rekomendasi
+                                  </Button>
                                 )}
-                               </div>
-                             )}
+                              </div>
+                            )}
                          </div>
                        </div>
                      ))}
