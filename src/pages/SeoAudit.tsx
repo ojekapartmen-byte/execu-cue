@@ -592,12 +592,13 @@ const SeoAudit = () => {
  
            {/* Results Section */}
            {auditResult && (
-             <SeoAuditResult
-               result={auditResult}
-               onApplyRecommendation={handleApplyRecommendation}
-               onViewEdited={handleViewEdited}
-               appliedItems={appliedItems}
-             />
+              <SeoAuditResult
+                result={auditResult}
+                onApplyRecommendation={handleApplyRecommendation}
+                onApplyAll={handleApplyAll}
+                onViewEdited={handleViewEdited}
+                appliedItems={appliedItems}
+              />
            )}
 
            {/* Edited Content Dialog */}
