@@ -351,15 +351,42 @@ TARGET KEYWORD:
    ]
  }
 
-PENTING UNTUK KONTEN PENGGANTI:
-- Untuk setiap item dengan status "warning" atau "fail", WAJIB sertakan field "suggestedContent" berisi konten pengganti yang sudah dioptimasi
-- Field "currentContent" berisi konten yang ditemukan saat ini (jika ada)
+
+ATURAN WAJIB UNTUK SEMUA 6 KATEGORI:
+- Untuk SETIAP item dengan status "warning" atau "fail" di SEMUA kategori, field "suggestedContent" WAJIB diisi
+- Tidak boleh ada item warning/fail TANPA suggestedContent
+- Field "currentContent" WAJIB diisi dengan konten yang ditemukan saat ini (atau "Tidak ditemukan" jika tidak ada)
 - Konten pengganti harus:
   - Mengandung keyword utama "${mainKeyword}" secara natural
   - Sesuai dengan best practice SEO
   - Siap untuk langsung digunakan (copy-paste ready)
   - Panjang yang sesuai standar SEO (title 50-60 karakter, meta desc 140-160 karakter, dll)
- 
+
+CONTOH FORMAT UNTUK SETIAP KATEGORI:
+
+Kategori "Struktur HTML & Heading" - suggestedContent berisi heading yang sudah dioptimasi:
+- H1: suggestedContent = "<h1>Judul Optimal dengan ${mainKeyword}</h1>"
+- H2: suggestedContent = "<h2>Sub Judul yang Mengandung Keyword</h2>"
+
+Kategori "Optimasi Keyword" - suggestedContent berisi paragraf/konten yang sudah dioptimasi:
+- Paragraf pertama: suggestedContent = paragraf pembuka yang mengandung keyword
+- Kepadatan keyword: suggestedContent = contoh kalimat dengan keyword yang natural
+
+Kategori "Kualitas Konten" - suggestedContent berisi perbaikan konten:
+- Alt text: suggestedContent = alt text yang deskriptif dengan keyword
+- Link internal: suggestedContent = contoh anchor text yang optimal
+- Paragraf pembuka: suggestedContent = paragraf pembuka yang menarik dengan hook
+
+Kategori "Social Media & Sharing" - suggestedContent berisi meta tag lengkap:
+- og:title: suggestedContent = '<meta property="og:title" content="Judul Optimal" />'
+- og:description: suggestedContent = '<meta property="og:description" content="Deskripsi 140-160 chars" />'
+- twitter:card: suggestedContent = '<meta name="twitter:card" content="summary_large_image" />'
+
+Kategori "SEO Teknis" - suggestedContent berisi kode/markup yang diperlukan:
+- Schema: suggestedContent = JSON-LD schema markup lengkap
+- Favicon: suggestedContent = '<link rel="icon" href="/favicon.ico" />'
+- Semantic HTML: suggestedContent = contoh struktur HTML semantik
+
 KATEGORI 1 - SEO DASAR (fokus pada keyword utama "${mainKeyword}"):
 - Tag Judul/Title (ada, panjang 50-60 karakter, mengandung keyword)
 - Meta Deskripsi (ada, panjang 140-160 karakter, menarik, mengandung keyword)
@@ -412,7 +439,8 @@ KATEGORI 6 - SEO TEKNIS:
 - HTTPS (koneksi aman)
 - Mobile Friendly indicators
 - Page structure (semantic HTML: header, main, article, section, footer)
- 
+
+INGAT: SETIAP item warning/fail di SEMUA 6 kategori WAJIB memiliki suggestedContent yang actionable dan siap pakai.
 Jadilah SANGAT TELITI. Untuk setiap item yang gagal, berikan rekomendasi yang actionable dalam Bahasa Indonesia.
 Periksa setiap elemen dengan seksama dan berikan status yang akurat.`;
  
