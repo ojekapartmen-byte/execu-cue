@@ -78,7 +78,7 @@ async function generateWithLovableAI(params: {
   scrapedContent: string[];
   sourceLinks: string[];
   sourceImages: { name: string; base64?: string }[];
-  seoSettings?: { keywords?: string; writingStyle?: string; tone?: string };
+  seoSettings?: { keywords?: string; writingStyle?: string; tone?: string; language?: string };
   apiKey: string;
 }): Promise<string> {
   const { topic, category, scrapedContent, sourceLinks, sourceImages, seoSettings, apiKey } = params;
@@ -107,11 +107,41 @@ async function generateWithLovableAI(params: {
   const writingStyle = seoSettings?.writingStyle || 'journalistic';
   const tone = seoSettings?.tone || 'professional';
   const keywords = seoSettings?.keywords || '';
+  const language = seoSettings?.language || 'id';
+  const isEnglish = language === 'en';
 
   const writingStyleContext = writingStyleDescriptions[writingStyle] || writingStyleDescriptions['journalistic'];
   const toneContext = toneDescriptions[tone] || toneDescriptions['professional'];
 
-  const systemPrompt = `Kamu adalah penulis artikel profesional berbahasa Indonesia yang ahli dalam SEO dan content writing.
+  const systemPrompt = isEnglish
+    ? `You are a professional English article writer, expert in SEO and content writing.
+
+IMPORTANT INSTRUCTIONS:
+1. Write the article in THIRD PERSON perspective - do not use "I" or "we", use the person's name or "he/she/they"
+2. Article category: ${category.toUpperCase()} - write from the perspective of ${categoryContext}
+3. Use this structure:
+   - An engaging main title containing the primary keyword
+   - A strong opening paragraph (suitable as meta description)
+   - Multiple sub-headings (H2, H3) for each key point
+   - Short paragraphs (2-4 sentences per paragraph)
+   - A conclusion or call-to-action at the end
+4. REWRITE content from sources in your own style, DO NOT copy paste
+5. Add insights and perspectives relevant to the ${category} category
+6. Minimum 500 words, maximum 1000 words
+
+SEO OPTIMIZATION:
+- Target Keywords: ${keywords || 'based on topic'}
+- Writing Style: ${writingStyle} - ${writingStyleContext}
+- Tone: ${tone} - ${toneContext}
+
+SEO INSTRUCTIONS:
+1. Use keywords NATURALLY in the title, sub-headings, and first paragraph
+2. Optimal keyword density 1-2% (don't overdo it)
+3. Use relevant keyword variations (LSI keywords)
+4. Make the opening paragraph suitable as a meta description (first 150-160 characters must be compelling)
+5. SEO-friendly heading structure (H1 for main title, H2 for sub-topics)
+6. Use internal linking keywords if relevant`
+    : `Kamu adalah penulis artikel profesional berbahasa Indonesia yang ahli dalam SEO dan content writing.
 
 INSTRUKSI PENTING:
 1. Tulis artikel dengan SUDUT PANDANG ORANG KETIGA - jangan gunakan "saya" atau "kita", gunakan nama tokoh atau "ia/beliau"
@@ -143,7 +173,15 @@ ${ARTICLE_STYLE_EXAMPLE}
 
 JANGAN gunakan sumber contoh style di atas sebagai konten, itu hanya referensi gaya penulisan.`;
 
-  let userPrompt = `Buatkan artikel profesional SEO-friendly tentang topik: "${topic}"
+  let userPrompt = isEnglish
+    ? `Create a professional SEO-friendly article about: "${topic}"
+
+Category: ${category.toUpperCase()}
+Writing perspective: ${categoryContext}
+Writing style: ${writingStyle} (${writingStyleContext})
+Tone: ${tone} (${toneContext})
+${keywords ? `Target Keywords: ${keywords}` : ''}`
+    : `Buatkan artikel profesional SEO-friendly tentang topik: "${topic}"
 
 Kategori: ${category.toUpperCase()}
 Perspektif penulisan: ${categoryContext}

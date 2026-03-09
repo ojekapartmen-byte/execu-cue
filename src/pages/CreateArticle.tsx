@@ -49,6 +49,7 @@ interface SEOSettings {
   keywords: string;
   writingStyle: string;
   tone: string;
+  language: string;
 }
 
 const WRITING_STYLES = [
@@ -80,7 +81,8 @@ const CreateArticle = () => {
   const [seoSettings, setSeoSettings] = useState<SEOSettings>({
     keywords: '',
     writingStyle: 'journalistic',
-    tone: 'professional'
+    tone: 'professional',
+    language: 'id'
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -529,6 +531,27 @@ const CreateArticle = () => {
                     <Label className="font-medium">SEO Settings</Label>
                   </div>
                   
+                  {/* Language */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Language</Label>
+                    <Select 
+                      value={seoSettings.language} 
+                      onValueChange={(val) => setSeoSettings(prev => ({ ...prev, language: val }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="id">
+                          <span>🇮🇩 Bahasa Indonesia</span>
+                        </SelectItem>
+                        <SelectItem value="en">
+                          <span>🇺🇸 English</span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Keywords */}
                   <div className="space-y-2">
                     <Label htmlFor="keywords" className="text-sm">Keywords</Label>
