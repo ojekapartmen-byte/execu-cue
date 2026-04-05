@@ -112,7 +112,7 @@ const ContentCalendar = () => {
       // Insert items into Supabase
       const itemsToInsert = data.items.map((item: any) => ({
         ...item,
-        status: "draft",
+        status: "draft" as const,
       }));
 
       const { error: insertError } = await supabase.from("content_calendar").insert(itemsToInsert);
