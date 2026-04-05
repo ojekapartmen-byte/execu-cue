@@ -74,20 +74,17 @@ async function scrapeWithFirecrawl(sourceLinks: string[], apiKey: string): Promi
 // Generate article using Lovable AI
 async function generateWithLovableAI(params: {
   topic: string;
-  category: string;
+  /** Instruksi kategori/persona lengkap dari database (dinamis). */
+  categoryPrompt: string;
   scrapedContent: string[];
   sourceLinks: string[];
   sourceImages: { name: string; base64?: string }[];
   seoSettings?: { keywords?: string; writingStyle?: string; tone?: string; language?: string };
   apiKey: string;
 }): Promise<string> {
-  const { topic, category, scrapedContent, sourceLinks, sourceImages, seoSettings, apiKey } = params;
-  
-  const categoryDescriptions: Record<string, string> = {
-    mentor: "seorang mentor/pembimbing yang berbagi pengalaman dan pembelajaran hidup, memberikan nasihat bijak berdasarkan pengalaman nyata",
-    investor: "seorang investor yang melihat peluang bisnis, strategi investasi, dan perspektif finansial yang tajam",
-    leader: "seorang pemimpin yang menginspirasi, memotivasi tim, dan memberikan visi kepemimpinan yang kuat"
-  };
+  const { topic, categoryPrompt, scrapedContent, sourceLinks, sourceImages, seoSettings, apiKey } = params;
+
+  const catBlock = categoryPrompt.trim();
 
   const writingStyleDescriptions: Record<string, string> = {
     'journalistic': 'profesional seperti artikel berita berkualitas, objektif, dan informatif',
@@ -103,7 +100,6 @@ async function generateWithLovableAI(params: {
     'inspirational': 'memotivasi dan menginspirasi, membangkitkan semangat pembaca'
   };
 
-  const categoryContext = categoryDescriptions[category] || categoryDescriptions.mentor;
   const writingStyle = seoSettings?.writingStyle || 'journalistic';
   const tone = seoSettings?.tone || 'professional';
   const keywords = seoSettings?.keywords || '';
@@ -118,7 +114,8 @@ async function generateWithLovableAI(params: {
 
 IMPORTANT INSTRUCTIONS:
 1. Write the article in THIRD PERSON perspective - do not use "I" or "we", use the person's name or "he/she/they"
-2. Article category: ${category.toUpperCase()} - write from the perspective of ${categoryContext}
+2. Category / persona / voice (from database — follow strictly):
+${catBlock}
 3. Use this structure:
    - An engaging main title containing the primary keyword
    - A strong opening paragraph (suitable as meta description)
@@ -126,7 +123,7 @@ IMPORTANT INSTRUCTIONS:
    - Short paragraphs (2-4 sentences per paragraph)
    - A conclusion or call-to-action at the end
 4. REWRITE content from sources in your own style, DO NOT copy paste
-5. Add insights and perspectives relevant to the ${category} category
+5. Add insights and perspectives aligned with the category instructions above
 6. Minimum 500 words, maximum 1000 words
 
 SEO OPTIMIZATION:
@@ -145,7 +142,8 @@ SEO INSTRUCTIONS:
 
 INSTRUKSI PENTING:
 1. Tulis artikel dengan SUDUT PANDANG ORANG KETIGA - jangan gunakan "saya" atau "kita", gunakan nama tokoh atau "ia/beliau"
-2. Kategori artikel: ${category.toUpperCase()} - tulis dari perspektif ${categoryContext}
+2. Kategori / persona / suara penulisan (dari database — ikuti persis):
+${catBlock}
 3. Gunakan struktur:
    - Judul utama yang menarik dan mengandung keyword utama
    - Paragraf pembuka yang kuat (bisa dijadikan meta description)
@@ -153,7 +151,7 @@ INSTRUKSI PENTING:
    - Paragraf pendek (2-4 kalimat per paragraf)
    - Kesimpulan atau call-to-action di akhir
 4. REWRITE konten dari sumber dengan gaya baru, JANGAN copy paste
-5. Tambahkan insight dan perspektif yang relevan dengan kategori ${category}
+5. Tambahkan insight dan perspektif yang selaras dengan instruksi kategori di atas
 6. Minimal 500 kata, maksimal 1000 kata
 
 SEO OPTIMIZATION:
@@ -176,15 +174,13 @@ JANGAN gunakan sumber contoh style di atas sebagai konten, itu hanya referensi g
   let userPrompt = isEnglish
     ? `Create a professional SEO-friendly article about: "${topic}"
 
-Category: ${category.toUpperCase()}
-Writing perspective: ${categoryContext}
+Follow the category/persona instructions in the system message.
 Writing style: ${writingStyle} (${writingStyleContext})
 Tone: ${tone} (${toneContext})
 ${keywords ? `Target Keywords: ${keywords}` : ''}`
     : `Buatkan artikel profesional SEO-friendly tentang topik: "${topic}"
 
-Kategori: ${category.toUpperCase()}
-Perspektif penulisan: ${categoryContext}
+Ikuti instruksi kategori/persona pada system message.
 Gaya penulisan: ${writingStyle} (${writingStyleContext})
 Tone: ${tone} (${toneContext})
 ${keywords ? `Target Keywords: ${keywords}` : ''}`;
@@ -286,17 +282,20 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      topic, 
-      category, 
-      sourceLinks, 
+    const {
+      topic,
+      categoryPrompt,
+      sourceLinks,
       sourceImages,
-      seoSettings
+      seoSettings,
     } = await req.json();
 
-    if (!topic || !category) {
+    const categoryPromptStr =
+      typeof categoryPrompt === 'string' ? categoryPrompt.trim() : '';
+
+    if (!topic || !categoryPromptStr) {
       return new Response(
-        JSON.stringify({ error: 'Topic dan category diperlukan' }),
+        JSON.stringify({ error: 'Topic dan categoryPrompt diperlukan' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -335,12 +334,12 @@ serve(async (req) => {
 
     const article = await generateWithLovableAI({
       topic,
-      category,
+      categoryPrompt: categoryPromptStr,
       scrapedContent,
       sourceLinks,
       sourceImages,
       seoSettings,
-      apiKey: LOVABLE_API_KEY
+      apiKey: LOVABLE_API_KEY,
     });
 
     console.log('Article generated successfully with Lovable AI');
