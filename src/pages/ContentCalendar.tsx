@@ -134,9 +134,9 @@ const ContentCalendar = () => {
     toast({ title: "Deleted", description: "Calendar item deleted." });
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from("content_calendar").update({ status }).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, status } : i)));
+  const updateStatus = async (id: string, newStatus: "draft" | "in_progress" | "ready" | "published" | "scheduled") => {
+    await supabase.from("content_calendar").update({ status: newStatus }).eq("id", id);
+    setItems(items.map((i) => (i.id === id ? { ...i, status: newStatus } : i)));
   };
 
   const handleCreateArticle = (item: CalendarItem) => {
