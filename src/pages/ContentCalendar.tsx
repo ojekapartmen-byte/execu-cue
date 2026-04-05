@@ -52,26 +52,47 @@ function isValidYmd(s: string) {
   return !Number.isNaN(t);
 }
 
-function parseGroqJsonArray(content: string): unknown[] {
-  let text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-  const tryParse = (raw: string) => {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-    if (parsed && typeof parsed === "object") {
-      const o = parsed as Record<string, unknown>;
-      if (Array.isArray(o.items)) return o.items;
-      if (Array.isArray(o.calendar)) return o.calendar;
-      if (Array.isArray(o.entries)) return o.entries;
-    }
-    throw new Error("Response is not a JSON array");
-  };
+const BATCH_MIN = 7;
+const BATCH_MAX = 10;
+
+function parseJsonWithArray(raw: string): unknown[] {
+  let parsed: unknown;
   try {
-    return tryParse(text);
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      throw new Error("Format JSON tidak valid — respons mungkin terpotong atau bukan JSON.");
+    }
+    throw e;
+  }
+  if (Array.isArray(parsed)) return parsed;
+  if (parsed && typeof parsed === "object") {
+    const o = parsed as Record<string, unknown>;
+    if (Array.isArray(o.items)) return o.items;
+    if (Array.isArray(o.calendar)) return o.calendar;
+    if (Array.isArray(o.entries)) return o.entries;
+  }
+  throw new Error("Bukan array JSON yang diharapkan.");
+}
+
+/** Mengekstrak dan mem-parse array JSON dari teks model; aman terhadap string kosong / SyntaxError. */
+function parseGroqJsonArray(content: string): unknown[] {
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("Teks respons kosong, tidak bisa di-parse.");
+  }
+  let text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  if (!text) {
+    throw new Error("Setelah dibersihkan, teks respons masih kosong.");
+  }
+  try {
+    return parseJsonWithArray(text);
   } catch {
     const start = text.indexOf("[");
     const end = text.lastIndexOf("]");
-    if (start === -1 || end <= start) throw new Error("Could not find JSON array in model output");
-    return tryParse(text.slice(start, end + 1));
+    if (start === -1 || end <= start) {
+      throw new Error("Tidak menemukan array JSON [ ... ] dalam respons.");
+    }
+    return parseJsonWithArray(text.slice(start, end + 1));
   }
 }
 
@@ -125,7 +146,7 @@ function normalizeCalendarRows(
 const ContentCalendar = () => {
   useSEO({
     title: "Content Strategy & Calendar - Execu-Cue SEO OS",
-    description: "Rencanakan strategi konten 30 hari otomatis dengan AI.",
+    description: "Generate batch ide konten (7–10) dengan AI; susun kalender tanpa respons JSON terpotong.",
   });
 
   const navigate = useNavigate();
@@ -182,27 +203,26 @@ const ContentCalendar = () => {
     setIsGenerating(true);
     const today = formatYmd(new Date());
 
-    const userPrompt = `You are helping build a 30-day editorial calendar.
+    const userPrompt = `Build a SMALL batch of editorial ideas (not a full month in one response).
 
 Context:
-- Seed keywords (use them across the month, rotate and combine): ${selectedKeywords.join(", ")}
+- Seed keywords (rotate and combine): ${selectedKeywords.join(", ")}
 - Persona: ${persona}
 - Content goal: ${contentGoal}
 - Tone: ${tone}
 - Publishing rhythm hint: ${frequency}
-- First scheduled_date should be ${today} or later; use 30 consecutive calendar days (one piece of content per day).
+- Schedule: generate between ${BATCH_MIN} and ${BATCH_MAX} items inclusive. First scheduled_date >= ${today}; use consecutive calendar days for those items only.
 
-Return ONLY a valid JSON array (no markdown, no commentary) with exactly 30 objects. Each object MUST have these keys:
-"title" (string),
-"target_keyword" (string),
-"keywords" (array of strings, LSI/supporting terms),
-"content_brief" (string, 2-4 sentences),
-"scheduled_date" (string, YYYY-MM-DD),
-"persona" (string),
-"tone" (string),
-"content_goal" (string).
+OUTPUT RULES (keep JSON compact to save tokens):
+- Return ONLY a raw JSON array — no markdown fences, no explanation, no text before or after the array.
+- Each object MUST have exactly these keys: "title", "target_keyword", "keywords", "content_brief", "scheduled_date", "persona", "tone", "content_goal"
+- "title": short SEO title (max ~90 chars)
+- "keywords": max 4 short strings (LSI/supporting)
+- "content_brief": ONE short paragraph only (max ~280 characters), no newlines inside the string if possible
+- "scheduled_date": "YYYY-MM-DD"
+- Reuse the persona/tone/goal strings briefly (can match context; avoid repetition essays)
 
-Do not include any other top-level keys. Do not wrap the array in an object.`;
+Do not wrap the array in an object. Do not output more than ${BATCH_MAX} objects.`;
 
     try {
       const response = await fetch(GROQ_CHAT_URL, {
@@ -217,7 +237,8 @@ Do not include any other top-level keys. Do not wrap the array in an object.`;
             { role: "system", content: "Senior SEO Content Strategist" },
             { role: "user", content: userPrompt },
           ],
-          temperature: 0.65,
+          temperature: 0.55,
+          max_tokens: 4096,
         }),
       });
 
@@ -228,17 +249,56 @@ Do not include any other top-level keys. Do not wrap the array in an object.`;
         throw new Error(msg);
       }
 
-      const rawText = result?.choices?.[0]?.message?.content;
-      if (typeof rawText !== "string" || !rawText.trim()) {
-        throw new Error("Model returned an empty response.");
+      const choice = result?.choices?.[0];
+      const rawText = choice?.message?.content;
+
+      if (choice?.finish_reason === "length") {
+        throw new Error("Respons terpotong oleh batas token. Coba lagi — batch sudah dibatasi 7–10 item.");
       }
 
-      const parsed = parseGroqJsonArray(rawText);
+      if (rawText == null) {
+        throw new Error("Model tidak mengembalikan konten (choices[0].message.content hilang).");
+      }
+      if (typeof rawText !== "string") {
+        throw new Error("Format respons AI tidak didukung (bukan string).");
+      }
+      const trimmedContent = rawText.trim();
+      if (!trimmedContent) {
+        throw new Error("Model mengembalikan teks kosong.");
+      }
+
+      let parsed: unknown[];
+      try {
+        parsed = parseGroqJsonArray(trimmedContent);
+      } catch (parseErr) {
+        const hint =
+          trimmedContent.length > 0 && !trimmedContent.trim().endsWith("]")
+            ? " Respons tampak tidak lengkap (bukan diakhiri dengan ])."
+            : "";
+        const base = parseErr instanceof Error ? parseErr.message : "Gagal mem-parse JSON.";
+        throw new Error(`${base}${hint}`);
+      }
+
       if (parsed.length === 0) {
-        throw new Error("Model returned an empty calendar.");
+        throw new Error("Array JSON kosong.");
       }
 
-      const itemsToInsert = normalizeCalendarRows(parsed, {
+      if (parsed.length > BATCH_MAX) {
+        toast({
+          title: "Catatan",
+          description: `AI mengembalikan ${parsed.length} item; hanya ${BATCH_MAX} pertama yang disimpan.`,
+        });
+      }
+
+      const batch = parsed.slice(0, BATCH_MAX);
+      if (batch.length < BATCH_MIN) {
+        toast({
+          title: "Batch pendek",
+          description: `AI mengembalikan ${batch.length} ide (target ${BATCH_MIN}–${BATCH_MAX}). Anda bisa klik generate lagi untuk menambah.`,
+        });
+      }
+
+      const itemsToInsert = normalizeCalendarRows(batch, {
         persona,
         tone,
         contentGoal,
@@ -306,10 +366,10 @@ Do not include any other top-level keys. Do not wrap the array in an object.`;
               <Loader2 className="h-7 w-7 animate-spin text-white" style={{ animationDuration: "0.85s" }} />
             </div>
             <p className="text-center font-display text-lg font-semibold tracking-tight text-slate-900">
-              Membangun kalender 30 hari
+              Menyusun batch ide konten
             </p>
             <p className="mt-2 text-center text-sm text-slate-500">
-              Groq · Llama 3.1 · menyusun judul, brief, dan jadwal…
+              Groq · {GROQ_MODEL} · {BATCH_MIN}–{BATCH_MAX} item per generate…
             </p>
             <div className="mt-6 space-y-2">
               <Skeleton className="h-2 w-full rounded-full bg-slate-200/80" />
@@ -350,7 +410,7 @@ Do not include any other top-level keys. Do not wrap the array in an object.`;
               AI Strategy Generator
             </CardTitle>
             <CardDescription className="text-slate-600">
-              Ubah keyword pilihanmu menjadi rencana konten 30 hari yang terstruktur.
+              Satu klik menghasilkan {BATCH_MIN}–{BATCH_MAX} ide konten (JSON ringkas) agar respons tidak terpotong. Ulangi generate untuk mengisi kalender lebih lama.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pt-2">
@@ -431,7 +491,7 @@ Do not include any other top-level keys. Do not wrap the array in an object.`;
               ) : (
                 <Sparkles className="mr-2 h-5 w-5" />
               )}
-              Generate 30-Day Content Strategy
+              Generate batch ({BATCH_MIN}–{BATCH_MAX} ide)
             </Button>
           </CardContent>
         </Card>
