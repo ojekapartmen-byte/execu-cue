@@ -10,6 +10,7 @@ import ArticleHistory from "./pages/ArticleHistory";
 import NotFound from "./pages/NotFound";
 import SeoAudit from "./pages/SeoAudit";
 import KeywordResearch from "./pages/KeywordResearch";
+import ContentCalendar from "./pages/ContentCalendar";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/article-history" element={<ArticleHistory />} />
           <Route path="/seo-audit" element={<SeoAudit />} />
           <Route path="/keyword-research" element={<KeywordResearch />} />
+          <Route path="/content-calendar" element={<ContentCalendar />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

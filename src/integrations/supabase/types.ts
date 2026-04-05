@@ -50,6 +50,71 @@ export type Database = {
         }
         Relationships: []
       }
+      content_calendar: {
+        Row: {
+          article_id: string | null
+          audit_recommendations: Json | null
+          audit_score: number | null
+          content_brief: string | null
+          content_goal: string | null
+          created_at: string
+          frequency: string | null
+          id: string
+          keywords: string[] | null
+          persona: string | null
+          scheduled_date: string
+          status: Database["public"]["Enums"]["calendar_status"]
+          target_keyword: string
+          title: string
+          tone: string | null
+          updated_at: string
+        }
+        Insert: {
+          article_id?: string | null
+          audit_recommendations?: Json | null
+          audit_score?: number | null
+          content_brief?: string | null
+          content_goal?: string | null
+          created_at?: string
+          frequency?: string | null
+          id?: string
+          keywords?: string[] | null
+          persona?: string | null
+          scheduled_date: string
+          status?: Database["public"]["Enums"]["calendar_status"]
+          target_keyword: string
+          title: string
+          tone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          article_id?: string | null
+          audit_recommendations?: Json | null
+          audit_score?: number | null
+          content_brief?: string | null
+          content_goal?: string | null
+          created_at?: string
+          frequency?: string | null
+          id?: string
+          keywords?: string[] | null
+          persona?: string | null
+          scheduled_date?: string
+          status?: Database["public"]["Enums"]["calendar_status"]
+          target_keyword?: string
+          title?: string
+          tone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_calendar_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -58,7 +123,12 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      calendar_status:
+        | "draft"
+        | "in_progress"
+        | "ready"
+        | "published"
+        | "scheduled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -185,6 +255,14 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      calendar_status: [
+        "draft",
+        "in_progress",
+        "ready",
+        "published",
+        "scheduled",
+      ],
+    },
   },
 } as const
