@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
-import Index from "./pages/Index";
+import Index from "./pages/Index"; // Ini Dashboard Utama
 import CreateArticle from "./pages/CreateArticle";
 import ArticleHistory from "./pages/ArticleHistory";
 import NotFound from "./pages/NotFound";
@@ -21,14 +21,20 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/daily-digest" element={<Index />} />
-          <Route path="/create-article" element={<CreateArticle />} />
-          <Route path="/article-history" element={<ArticleHistory />} />
-          <Route path="/seo-audit" element={<SeoAudit />} />
-          <Route path="/keyword-research" element={<KeywordResearch />} />
+          {/* Dashboard Utama SEO OS */}
+          <Route path="/" element={<Index />} /> 
+          
+          {/* Menu-menu SEO OS */}
+          <Route path="/research" element={<KeywordResearch />} />
           <Route path="/content-calendar" element={<ContentCalendar />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/create-article" element={<CreateArticle />} />
+          <Route path="/audit" element={<SeoAudit />} />
+          
+          {/* Fitur Tambahan */}
+          <Route path="/daily-digest" element={<LandingPage />} />
+          <Route path="/article-history" element={<ArticleHistory />} />
+          
+          {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

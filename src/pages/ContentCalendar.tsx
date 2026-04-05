@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/useSEO";
@@ -28,7 +27,6 @@ interface CalendarItem {
   content_goal: string | null;
   audit_score: number | null;
   article_id: string | null;
-  created_at: string;
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
@@ -41,8 +39,8 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 
 const ContentCalendar = () => {
   useSEO({
-    title: "Content Calendar - AI Content Strategy",
-    description: "AI-powered content calendar. Plan, create, and manage your content strategy with automated keyword-driven scheduling.",
+    title: "Content Strategy & Calendar - Execu-Cue SEO OS",
+    description: "Rencanakan strategi konten 30 hari otomatis dengan AI.",
   });
 
   const navigate = useNavigate();
@@ -51,96 +49,128 @@ const ContentCalendar = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
-  const [newKeyword, setNewKeyword] = useState("");
-  const [persona, setPersona] = useState("");
-  const [contentGoal, setContentGoal] = useState("");
+  const [persona, setPersona] = useState("Pemilik Bisnis / Pencari Properti");
+  const [contentGoal, setContentGoal] = useState("Meningkatkan Trust & Leads");
   const [frequency, setFrequency] = useState("2x/week");
   const [tone, setTone] = useState("professional");
 
-  // Load selected keywords from localStorage (from Keyword Research)
   useEffect(() => {
     const stored = localStorage.getItem("strategyKeywords");
     if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setSelectedKeywords(parsed);
-      } catch {}
+      try { setSelectedKeywords(JSON.parse(stored)); } catch (e) {}
     }
     fetchCalendarItems();
   }, []);
 
   const fetchCalendarItems = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("content_calendar")
-      .select("*")
-      .order("scheduled_date", { ascending: true });
-    if (!error && data) {
-      setItems(data as CalendarItem[]);
+    try {
+      const { data, error } = await supabase
+        .from("content_calendar")
+        .select("*")
+        .order("scheduled_date", { ascending: true });
+      if (error) throw error;
+      if (data) setItems(data as CalendarItem[]);
+    } catch (err) {
+      console.error("Fetch Error:", err);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  };
-
-  const addKeyword = () => {
-    if (newKeyword.trim() && !selectedKeywords.includes(newKeyword.trim())) {
-      const updated = [...selectedKeywords, newKeyword.trim()];
-      setSelectedKeywords(updated);
-      localStorage.setItem("strategyKeywords", JSON.stringify(updated));
-      setNewKeyword("");
-    }
-  };
-
-  const removeKeyword = (kw: string) => {
-    const updated = selectedKeywords.filter((k) => k !== kw);
-    setSelectedKeywords(updated);
-    localStorage.setItem("strategyKeywords", JSON.stringify(updated));
   };
 
   const generateCalendar = async () => {
     if (selectedKeywords.length === 0) {
-      toast({ title: "Error", description: "Tambahkan minimal 1 keyword terlebih dahulu.", variant: "destructive" });
+      toast({ title: "Keyword Kosong", description: "Pilih keyword di menu Riset dulu!", variant: "destructive" });
       return;
     }
-    setIsGenerating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-calendar", {
-        body: { keywords: selectedKeywords, persona, contentGoal, frequency, tone },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
 
-      // Insert items into Supabase
-      const itemsToInsert = data.items.map((item: any) => ({
+    setIsGenerating(true);
+    // Kita pastikan mengambil kunci yang pertama
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+    try {
+      const prompt = `
+        Tindak sebagai SEO Content Strategist Senior. 
+        Buatkan kalender konten 30 hari berdasarkan keywords ini: ${selectedKeywords.join(", ")}.
+        Persona: ${persona}, Goal: ${contentGoal}, Tone: ${tone}, Frekuensi: ${frequency}.
+
+        OUTPUT HARUS JSON ARRAY SAJA (Tanpa teks lain):
+        [{
+          "title": "Judul Artikel SEO yang menarik",
+          "target_keyword": "keyword utama",
+          "keywords": ["LSI 1", "LSI 2"],
+          "content_brief": "Ringkasan singkat apa yang harus dibahas",
+          "scheduled_date": "YYYY-MM-DD",
+          "persona": "${persona}",
+          "tone": "${tone}",
+          "content_goal": "${contentGoal}"
+        }]
+      `;
+
+      // KEMBALI KE v1beta (Karena Flash 1.5 lebih stabil di sini untuk 2026)
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+
+      const result = await response.json();
+
+      // Jaring Pengaman Error API
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      if (!result.candidates || !result.candidates[0]?.content?.parts?.[0]?.text) {
+        throw new Error("AI tidak memberikan respon. Cek kuota atau API Key anda.");
+      }
+      
+      const rawText = result.candidates[0].content.parts[0].text;
+      // Membersihkan markdown ```json ... ``` yang sering dikirim AI
+      const cleanedText = rawText.replace(/```json|```/g, "").trim();
+      const aiResponse = JSON.parse(cleanedText);
+
+      // Memastikan status adalah 'draft' agar tidak ditolak Supabase
+      const itemsToInsert = aiResponse.map((item: any) => ({
         ...item,
-        status: "draft" as const,
+        status: 'draft'
       }));
 
       const { error: insertError } = await supabase.from("content_calendar").insert(itemsToInsert);
       if (insertError) throw insertError;
 
-      toast({ title: "Calendar generated!", description: `${data.items.length} content items created.` });
-      await fetchCalendarItems();
+      toast({ title: "Berhasil!", description: `${aiResponse.length} konten dijadwalkan.` });
+      fetchCalendarItems();
     } catch (err: any) {
-      console.error("Calendar generation error:", err);
-      toast({ title: "Error", description: err.message || "Gagal generate calendar", variant: "destructive" });
+      console.error("AI Error Detail:", err);
+      toast({ 
+        title: "Gagal Generate", 
+        description: err.message || "Pastikan API Key benar dan internet lancar.", 
+        variant: "destructive" 
+      });
     } finally {
       setIsGenerating(false);
     }
   };
 
   const deleteItem = async (id: string) => {
-    await supabase.from("content_calendar").delete().eq("id", id);
-    setItems(items.filter((i) => i.id !== id));
-    toast({ title: "Deleted", description: "Calendar item deleted." });
+    const { error } = await supabase.from("content_calendar").delete().eq("id", id);
+    if (!error) {
+      setItems(items.filter((i) => i.id !== id));
+      toast({ title: "Dihapus", description: "Item kalender berhasil dihapus." });
+    }
   };
 
-  const updateStatus = async (id: string, newStatus: "draft" | "in_progress" | "ready" | "published" | "scheduled") => {
-    await supabase.from("content_calendar").update({ status: newStatus }).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, status: newStatus } : i)));
+  const updateStatus = async (id: string, newStatus: string) => {
+    const { error } = await supabase.from("content_calendar").update({ status: newStatus }).eq("id", id);
+    if (!error) {
+      setItems(items.map((i) => (i.id === id ? { ...i, status: newStatus } : i)));
+    }
   };
 
   const handleCreateArticle = (item: CalendarItem) => {
-    // Store data for create-article page
     localStorage.setItem("calendarArticle", JSON.stringify({
       calendarId: item.id,
       title: item.title,
@@ -151,147 +181,115 @@ const ContentCalendar = () => {
     navigate("/create-article");
   };
 
-  const handleRunAudit = (item: CalendarItem) => {
-    if (!item.article_id) {
-      toast({ title: "Buat artikel dulu", description: "Artikel belum dibuat untuk item ini.", variant: "destructive" });
-      return;
-    }
-    localStorage.setItem("auditCalendarId", item.id);
-    navigate(`/seo-audit?articleId=${item.article_id}`);
-  };
-
-  const handlePublish = async (item: CalendarItem) => {
-    if (item.audit_score && item.audit_score < 80) {
-      toast({ title: "Audit score terlalu rendah", description: `Score ${item.audit_score}/100. Perbaiki dulu sebelum publish.`, variant: "destructive" });
-      return;
-    }
-    // Mock publish
-    await updateStatus(item.id, "published");
-    toast({ title: "Published! 🎉", description: `"${item.title}" berhasil di-publish (mock).` });
-  };
-
   return (
-    <div className="min-h-screen bg-background">
-      <header className="w-full border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <nav className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <Link to="/"><Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button></Link>
+    <div className="min-h-screen bg-slate-50/50">
+      <header className="w-full border-b bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <nav className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to="/"><Button variant="ghost" size="icon"><ArrowLeft /></Button></Link>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <CalendarDays className="w-5 h-5 text-primary-foreground" />
+              <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center shadow-lg shadow-purple-200">
+                <CalendarDays className="text-white w-5 h-5" />
               </div>
-              <div>
-                <span className="font-display text-xl font-bold text-foreground block">Content Calendar</span>
-                <span className="text-xs text-muted-foreground">AI-Powered Content Strategy</span>
-              </div>
+              <h1 className="text-xl font-bold font-serif">Content Strategy</h1>
             </div>
           </div>
         </nav>
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Generator Section */}
-        <Card className="mb-8">
+        <Card className="mb-8 border-none shadow-md overflow-hidden">
+          <div className="h-1 bg-purple-600" />
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Sparkles className="w-5 h-5" /> Generate Content Calendar</CardTitle>
-            <CardDescription>Pilih keyword target, tentukan persona & strategi, dan AI akan membuat content calendar 1 bulan.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><Sparkles className="w-5 h-5 text-purple-600" /> AI Strategy Generator</CardTitle>
+            <CardDescription>Ubah keyword pilihanmu menjadi rencana konten 30 hari yang terstruktur.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Keywords */}
+          <CardContent className="space-y-6">
             <div>
-              <label className="text-sm font-medium mb-2 block">Target Keywords</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {selectedKeywords.map((kw) => (
-                  <Badge key={kw} variant="secondary" className="gap-1 text-sm">
-                    {kw}
-                    <button onClick={() => removeKeyword(kw)} className="ml-1 hover:text-destructive">×</button>
-                  </Badge>
-                ))}
+              <label className="text-sm font-bold text-slate-700 mb-2 block">Target Keywords</label>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {selectedKeywords.length > 0 ? (
+                  selectedKeywords.map((kw) => (
+                    <Badge key={kw} variant="secondary" className="bg-white border text-slate-700 py-1 px-3 rounded-full">
+                      {kw}
+                      <button onClick={() => {
+                         const updated = selectedKeywords.filter(k => k !== kw);
+                         setSelectedKeywords(updated);
+                         localStorage.setItem("strategyKeywords", JSON.stringify(updated));
+                      }} className="ml-2 hover:text-red-500">×</button>
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Belum ada keyword. Cari di menu Riset dulu!</p>
+                )}
               </div>
-              <div className="flex gap-2">
-                <Input
-                  value={newKeyword}
-                  onChange={(e) => setNewKeyword(e.target.value)}
-                  placeholder="Tambah keyword..."
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addKeyword())}
-                />
-                <Button variant="outline" onClick={addKeyword}><Plus className="w-4 h-4" /></Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Tip: Gunakan "Add to Strategy" di halaman Riset Keyword untuk menambah otomatis.</p>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-1 block">Target Persona</label>
-                <Input value={persona} onChange={(e) => setPersona(e.target.value)} placeholder="e.g. Pemilik bisnis UMKM" />
+            <div className="grid md:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-slate-500">Persona</label>
+                <Input value={persona} onChange={(e) => setPersona(e.target.value)} className="bg-white" />
               </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Content Goal</label>
-                <Input value={contentGoal} onChange={(e) => setContentGoal(e.target.value)} placeholder="e.g. Lead generation" />
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-slate-500">Goal</label>
+                <Input value={contentGoal} onChange={(e) => setContentGoal(e.target.value)} className="bg-white" />
               </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Frequency</label>
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-slate-500">Frekuensi</label>
                 <Select value={frequency} onValueChange={setFrequency}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="3x/week">3x/week</SelectItem>
-                    <SelectItem value="2x/week">2x/week</SelectItem>
+                    <SelectItem value="daily">Harian</SelectItem>
+                    <SelectItem value="3x/week">3x Seminggu</SelectItem>
+                    <SelectItem value="2x/week">2x Seminggu</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Tone of Voice</label>
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-slate-500">Tone</label>
                 <Select value={tone} onValueChange={setTone}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="professional">Professional</SelectItem>
                     <SelectItem value="casual">Casual</SelectItem>
-                    <SelectItem value="educational">Educational</SelectItem>
-                    <SelectItem value="inspirational">Inspirational</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <Button onClick={generateCalendar} disabled={isGenerating || selectedKeywords.length === 0} className="w-full sm:w-auto">
-              {isGenerating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating Calendar...</> : <><Sparkles className="w-4 h-4" /> Generate 1-Month Calendar</>}
+            <Button 
+              onClick={generateCalendar} 
+              disabled={isGenerating || selectedKeywords.length === 0}
+              className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-lg shadow-lg"
+            >
+              {isGenerating ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2 w-5 h-5" />}
+              Generate 30-Day Content Strategy
             </Button>
           </CardContent>
         </Card>
 
-        {/* Calendar Table */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <CardTitle>Content Calendar ({items.length} items)</CardTitle>
-                <CardDescription>Kelola, buat artikel, dan audit konten Anda.</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={fetchCalendarItems}>
-                <RefreshCw className="w-4 h-4" /> Refresh
-              </Button>
-            </div>
+        <Card className="border-none shadow-md bg-white">
+          <CardHeader className="flex flex-row items-center justify-between border-b mb-4">
+            <CardTitle>Content Queue ({items.length})</CardTitle>
+            <Button variant="ghost" size="sm" onClick={fetchCalendarItems}><RefreshCw className="w-4 h-4" /></Button>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-12"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+              <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-purple-600" /></div>
             ) : items.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <CalendarDays className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>Belum ada calendar items. Generate calendar di atas atau tambah dari Riset Keyword.</p>
+              <div className="py-20 text-center text-slate-400 italic">
+                <CalendarDays className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                Belum ada jadwal. Gunakan generator di atas!
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[100px]">Tanggal</TableHead>
-                      <TableHead>Judul</TableHead>
-                      <TableHead className="w-[130px]">Keyword</TableHead>
-                      <TableHead className="w-[100px]">Status</TableHead>
-                      <TableHead className="w-[80px]">Score</TableHead>
-                      <TableHead className="w-[200px] text-right">Actions</TableHead>
+                    <TableRow className="bg-slate-50/50">
+                      <TableHead className="w-[120px]">Tanggal</TableHead>
+                      <TableHead>Topik & Judul</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -299,58 +297,36 @@ const ContentCalendar = () => {
                       const sc = statusConfig[item.status] || statusConfig.draft;
                       const StatusIcon = sc.icon;
                       return (
-                        <TableRow key={item.id}>
-                          <TableCell className="text-xs font-mono">{item.scheduled_date}</TableCell>
+                        <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                          <TableCell className="font-mono text-xs font-bold text-slate-500">{item.scheduled_date}</TableCell>
                           <TableCell>
-                            <p className="font-medium text-sm leading-tight">{item.title}</p>
-                            {item.content_brief && (
-                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.content_brief}</p>
-                            )}
+                            <p className="font-bold text-slate-900">{item.title}</p>
+                            <p className="text-xs text-slate-400 line-clamp-1">{item.content_brief}</p>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-xs">{item.target_keyword}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Select value={item.status} onValueChange={(v) => updateStatus(item.id, v as "draft" | "in_progress" | "ready" | "published" | "scheduled")}>
-                              <SelectTrigger className="h-7 text-xs w-[110px]">
+                            <Select value={item.status} onValueChange={(v) => updateStatus(item.id, v)}>
+                              <SelectTrigger className="h-8 text-xs w-[120px]">
                                 <div className="flex items-center gap-1">
                                   <StatusIcon className="w-3 h-3" />
-                                  <span>{sc.label}</span>
+                                  {sc.label}
                                 </div>
                               </SelectTrigger>
                               <SelectContent>
-                                {Object.entries(statusConfig).map(([key, val]) => (
-                                  <SelectItem key={key} value={key}>{val.label}</SelectItem>
+                                {Object.entries(statusConfig).map(([k, v]) => (
+                                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell className="text-center">
-                            {item.audit_score !== null ? (
-                              <Badge variant="outline" className={`text-xs ${item.audit_score >= 80 ? "text-green-700" : item.audit_score >= 60 ? "text-yellow-700" : "text-red-700"}`}>
-                                {item.audit_score}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleCreateArticle(item)}>
-                                <PenSquare className="w-3 h-3" /> Create
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRunAudit(item)} disabled={!item.article_id}>
-                                <Search className="w-3 h-3" /> Audit
-                              </Button>
-                              {item.audit_score !== null && item.audit_score >= 80 && item.status !== "published" && (
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-green-700" onClick={() => handlePublish(item)}>
-                                  <Send className="w-3 h-3" /> Publish
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => deleteItem(item.id)}>
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </div>
+                             <div className="flex justify-end gap-2">
+                               <Button size="sm" variant="outline" className="h-8 px-2 border-purple-200 text-purple-600" onClick={() => handleCreateArticle(item)}>
+                                 Write <PenSquare className="ml-1 w-3 h-3" />
+                               </Button>
+                               <Button size="sm" variant="ghost" className="h-8 px-2 text-red-400" onClick={() => deleteItem(item.id)}>
+                                 <Trash2 className="w-3 h-3" />
+                               </Button>
+                             </div>
                           </TableCell>
                         </TableRow>
                       );
