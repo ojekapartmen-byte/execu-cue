@@ -39,7 +39,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 };
 
 const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.1-70b-versatile";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 function formatYmd(d: Date) {
   const p = (n: number) => String(n).padStart(2, "0");
