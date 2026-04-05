@@ -311,7 +311,7 @@ const ContentCalendar = () => {
                             <Badge variant="outline" className="text-xs">{item.target_keyword}</Badge>
                           </TableCell>
                           <TableCell>
-                            <Select value={item.status} onValueChange={(v) => updateStatus(item.id, v)}>
+                            <Select value={item.status} onValueChange={(v) => updateStatus(item.id, v as "draft" | "in_progress" | "ready" | "published" | "scheduled")}>
                               <SelectTrigger className="h-7 text-xs w-[110px]">
                                 <div className="flex items-center gap-1">
                                   <StatusIcon className="w-3 h-3" />
