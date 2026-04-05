@@ -96,7 +96,15 @@ function parseGroqJsonArray(content: string): unknown[] {
   }
 }
 
-type CalendarInsertRow = {
+/** Respons AI: hemat token — hanya 3 field. */
+type GroqIdeaItem = {
+  title: string;
+  target_keyword: string;
+  content_brief: string | null;
+};
+
+/** Baris insert ke `content_calendar` (Supabase snake_case). */
+type ContentCalendarInsertRow = {
   title: string;
   target_keyword: string;
   keywords: string[];
@@ -106,39 +114,35 @@ type CalendarInsertRow = {
   tone: string | null;
   content_goal: string | null;
   status: "draft";
-  frequency: string;
 };
 
-function normalizeCalendarRows(
+function parseGroqIdea(entry: unknown, index: number, fallbackKeyword: string): GroqIdeaItem {
+  const item = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+  const title = String(item.title ?? "").trim() || `Idea ${index + 1}`;
+  const target_keyword = String(item.target_keyword ?? fallbackKeyword).trim();
+  const briefRaw = item.content_brief;
+  const content_brief =
+    briefRaw != null && String(briefRaw).trim() !== "" ? String(briefRaw).trim() : null;
+  return { title, target_keyword, content_brief };
+}
+
+/** Gabungkan output AI dengan state UI; tanggal awal = hari ini (DB `scheduled_date` NOT NULL). */
+function mergeIdeasToCalendarRows(
   raw: unknown[],
-  defaults: { persona: string; tone: string; contentGoal: string; frequency: string; fallbackKeyword: string }
-): CalendarInsertRow[] {
-  const start = new Date();
-  start.setHours(12, 0, 0, 0);
+  ctx: { persona: string; tone: string; contentGoal: string; fallbackKeyword: string; scheduledDate: string }
+): ContentCalendarInsertRow[] {
   return raw.map((entry, index) => {
-    const item = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
-    const title = String(item.title ?? "").trim() || `Content idea ${index + 1}`;
-    const target_keyword = String(item.target_keyword ?? defaults.fallbackKeyword).trim();
-    const keywords = Array.isArray(item.keywords)
-      ? item.keywords.map((k) => String(k).trim()).filter(Boolean)
-      : [];
-    let scheduled_date = String(item.scheduled_date ?? "").trim().slice(0, 10);
-    if (!isValidYmd(scheduled_date)) {
-      const d = new Date(start);
-      d.setDate(d.getDate() + index);
-      scheduled_date = formatYmd(d);
-    }
+    const idea = parseGroqIdea(entry, index, ctx.fallbackKeyword);
     return {
-      title,
-      target_keyword,
-      keywords,
-      content_brief: item.content_brief != null && String(item.content_brief).trim() !== "" ? String(item.content_brief) : null,
-      scheduled_date,
-      persona: item.persona != null ? String(item.persona) : defaults.persona,
-      tone: item.tone != null ? String(item.tone) : defaults.tone,
-      content_goal: item.content_goal != null ? String(item.content_goal) : defaults.contentGoal,
+      title: idea.title,
+      target_keyword: idea.target_keyword,
+      keywords: [],
+      content_brief: idea.content_brief,
+      scheduled_date: ctx.scheduledDate,
+      persona: ctx.persona,
+      tone: ctx.tone,
+      content_goal: ctx.contentGoal,
       status: "draft",
-      frequency: defaults.frequency,
     };
   });
 }
@@ -146,7 +150,7 @@ function normalizeCalendarRows(
 const ContentCalendar = () => {
   useSEO({
     title: "Content Strategy & Calendar - Execu-Cue SEO OS",
-    description: "Generate batch ide konten (7–10) dengan AI; susun kalender tanpa respons JSON terpotong.",
+    description: "AI hanya menghasilkan ide (judul, keyword, brief); persona, tone, goal, dan tanggal diatur di UI.",
   });
 
   const navigate = useNavigate();
@@ -201,28 +205,18 @@ const ContentCalendar = () => {
     }
 
     setIsGenerating(true);
-    const today = formatYmd(new Date());
+    const initialScheduledDate = formatYmd(new Date());
 
-    const userPrompt = `Build a SMALL batch of editorial ideas (not a full month in one response).
+    const userPrompt = `Return ONLY a JSON array — no markdown, no explanation, no keys outside each object.
 
-Context:
-- Seed keywords (rotate and combine): ${selectedKeywords.join(", ")}
-- Persona: ${persona}
-- Content goal: ${contentGoal}
-- Tone: ${tone}
-- Publishing rhythm hint: ${frequency}
-- Schedule: generate between ${BATCH_MIN} and ${BATCH_MAX} items inclusive. First scheduled_date >= ${today}; use consecutive calendar days for those items only.
+Length: ${BATCH_MIN} to ${BATCH_MAX} objects inclusive.
 
-OUTPUT RULES (keep JSON compact to save tokens):
-- Return ONLY a raw JSON array — no markdown fences, no explanation, no text before or after the array.
-- Each object MUST have exactly these keys: "title", "target_keyword", "keywords", "content_brief", "scheduled_date", "persona", "tone", "content_goal"
-- "title": short SEO title (max ~90 chars)
-- "keywords": max 4 short strings (LSI/supporting)
-- "content_brief": ONE short paragraph only (max ~280 characters), no newlines inside the string if possible
-- "scheduled_date": "YYYY-MM-DD"
-- Reuse the persona/tone/goal strings briefly (can match context; avoid repetition essays)
+Each object MUST have exactly these 3 keys:
+"title" (short SEO title),
+"target_keyword" (string),
+"content_brief" (one sentence max).
 
-Do not wrap the array in an object. Do not output more than ${BATCH_MAX} objects.`;
+Seed keywords to cover: ${selectedKeywords.join(", ")}`;
 
     try {
       const response = await fetch(GROQ_CHAT_URL, {
@@ -234,11 +228,11 @@ Do not wrap the array in an object. Do not output more than ${BATCH_MAX} objects
         body: JSON.stringify({
           model: GROQ_MODEL,
           messages: [
-            { role: "system", content: "Senior SEO Content Strategist" },
+            { role: "system", content: "Senior SEO Content Strategist. Reply with JSON array only." },
             { role: "user", content: userPrompt },
           ],
-          temperature: 0.55,
-          max_tokens: 4096,
+          temperature: 0.45,
+          max_tokens: 1536,
         }),
       });
 
@@ -298,16 +292,20 @@ Do not wrap the array in an object. Do not output more than ${BATCH_MAX} objects
         });
       }
 
-      const itemsToInsert = normalizeCalendarRows(batch, {
+      const itemsToInsert = mergeIdeasToCalendarRows(batch, {
         persona,
         tone,
         contentGoal,
-        frequency,
         fallbackKeyword: selectedKeywords[0] ?? "",
+        scheduledDate: initialScheduledDate,
       });
 
+      // Insert ke content_calendar: merge AI (3 field) + UI (persona, tone, goal) + tanggal awal hari ini + status draft
       const { error: insertError } = await supabase.from("content_calendar").insert(itemsToInsert);
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("Supabase insert content_calendar:", insertError);
+        throw new Error(insertError.message || "Gagal menyimpan ke database.");
+      }
 
       toast({ title: "Berhasil!", description: `${itemsToInsert.length} konten disimpan sebagai draft.` });
       fetchCalendarItems();
@@ -337,6 +335,20 @@ Do not wrap the array in an object. Do not output more than ${BATCH_MAX} objects
     if (!error) {
       setItems(items.map((i) => (i.id === id ? { ...i, status: newStatus } : i)));
     }
+  };
+
+  const updateDate = async (id: string, newDate: string) => {
+    if (!newDate || !isValidYmd(newDate)) {
+      toast({ title: "Tanggal tidak valid", description: "Gunakan format YYYY-MM-DD.", variant: "destructive" });
+      return;
+    }
+    const { error } = await supabase.from("content_calendar").update({ scheduled_date: newDate }).eq("id", id);
+    if (error) {
+      console.error("updateDate:", error);
+      toast({ title: "Gagal menyimpan tanggal", description: error.message, variant: "destructive" });
+      return;
+    }
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, scheduled_date: newDate } : i)));
   };
 
   const handleCreateArticle = (item: CalendarItem) => {
@@ -369,7 +381,7 @@ Do not wrap the array in an object. Do not output more than ${BATCH_MAX} objects
               Menyusun batch ide konten
             </p>
             <p className="mt-2 text-center text-sm text-slate-500">
-              Groq · {GROQ_MODEL} · {BATCH_MIN}–{BATCH_MAX} item per generate…
+              Groq · {GROQ_MODEL} · JSON mini ({BATCH_MIN}–{BATCH_MAX} ide)…
             </p>
             <div className="mt-6 space-y-2">
               <Skeleton className="h-2 w-full rounded-full bg-slate-200/80" />
@@ -410,7 +422,7 @@ Do not wrap the array in an object. Do not output more than ${BATCH_MAX} objects
               AI Strategy Generator
             </CardTitle>
             <CardDescription className="text-slate-600">
-              Satu klik menghasilkan {BATCH_MIN}–{BATCH_MAX} ide konten (JSON ringkas) agar respons tidak terpotong. Ulangi generate untuk mengisi kalender lebih lama.
+              AI hanya mengisi judul, keyword utama, dan brief (1 kalimat). Persona, goal, dan tone memakai pilihan di bawah; jadwal tanggal diatur lewat kolom tanggal pada tabel.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pt-2">
@@ -531,7 +543,7 @@ Do not wrap the array in an object. Do not output more than ${BATCH_MAX} objects
                     <Table>
                       <TableHeader>
                         <TableRow className="border-slate-200 bg-slate-100/80 hover:bg-slate-100/80">
-                          <TableHead className="w-[120px] font-semibold text-slate-700">Tanggal</TableHead>
+                          <TableHead className="w-[160px] min-w-[160px] font-semibold text-slate-700">Tanggal</TableHead>
                           <TableHead className="font-semibold text-slate-700">Topik &amp; Judul</TableHead>
                           <TableHead className="font-semibold text-slate-700">Status</TableHead>
                           <TableHead className="text-right font-semibold text-slate-700">Aksi</TableHead>
@@ -546,8 +558,17 @@ Do not wrap the array in an object. Do not output more than ${BATCH_MAX} objects
                               key={item.id}
                               className="border-slate-100 transition-colors hover:bg-white/90"
                             >
-                              <TableCell className="font-mono text-xs font-semibold text-slate-600">
-                                {item.scheduled_date}
+                              <TableCell className="align-middle">
+                                <Input
+                                  type="date"
+                                  aria-label={`Jadwal untuk ${item.title}`}
+                                  className="h-8 w-[148px] border-slate-200 bg-white font-mono text-xs text-slate-800"
+                                  value={item.scheduled_date ? String(item.scheduled_date).slice(0, 10) : ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    if (v) void updateDate(item.id, v);
+                                  }}
+                                />
                               </TableCell>
                               <TableCell>
                                 <p className="font-semibold text-slate-900">{item.title}</p>
