@@ -6,7 +6,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -14,8 +13,7 @@ serve(async (req) => {
   try {
     const { title, content } = await req.json()
 
-    // Ambil Secret yang tadi kamu set lewat CLI
-    const wpUrl = Deno.env.get('WP_URL')?.replace(/\/$/, '') // Bersihkan garis miring akhir
+    const wpUrl = Deno.env.get('WP_URL')?.replace(/\/$/, '')
     const wpUsername = Deno.env.get('WP_USERNAME')
     const wpAppPassword = Deno.env.get('WP_APPLICATION_PASSWORD')
 
@@ -23,7 +21,6 @@ serve(async (req) => {
       throw new Error('Konfigurasi WordPress di Secrets Supabase belum lengkap.')
     }
 
-    // AUTHENTICATION: WordPress butuh Basic Auth (user:pass di-encode ke Base64)
     const authString = btoa(`${wpUsername}:${wpAppPassword}`)
 
     console.log(`Mencoba kirim ke: ${wpUrl}/wp-json/wp/v2/posts`)
@@ -37,7 +34,7 @@ serve(async (req) => {
       body: JSON.stringify({
         title: title,
         content: content,
-        status: 'draft', // Selalu simpan sebagai draft dulu agar aman
+        status: 'draft',
       }),
     })
 
@@ -54,7 +51,7 @@ serve(async (req) => {
     )
 
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
+    const msg = error instanceof Error ? error.message : String(error)
     console.error('Function Error:', msg)
     return new Response(
       JSON.stringify({ success: false, error: msg }),
