@@ -331,7 +331,7 @@ Seed keywords to cover: ${selectedKeywords.join(", ")}`;
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
-    const { error } = await supabase.from("content_calendar").update({ status: newStatus }).eq("id", id);
+    const { error } = await supabase.from("content_calendar").update({ status: newStatus as any }).eq("id", id);
     if (!error) {
       setItems(items.map((i) => (i.id === id ? { ...i, status: newStatus } : i)));
     }
