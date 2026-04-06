@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useArticles } from "@/hooks/useArticles";
-import { Loader2, Share2, Linkedin, Twitter, Mail, Globe, CheckCircle, ExternalLink, CalendarDays } from "lucide-react";
+import { Loader2, Share2, Globe, CheckCircle, ExternalLink, CalendarDays } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";

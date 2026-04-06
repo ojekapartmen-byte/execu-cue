@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      article_categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string
+          id: string
+          name: string
+          value: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          name: string
+          value: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          value?: string
+        }
+        Relationships: []
+      }
       articles: {
         Row: {
           content: string
@@ -53,67 +80,50 @@ export type Database = {
       content_calendar: {
         Row: {
           article_id: string | null
-          audit_recommendations: Json | null
           audit_score: number | null
           content_brief: string | null
           content_goal: string | null
           created_at: string
-          frequency: string | null
           id: string
           keywords: string[] | null
           persona: string | null
-          scheduled_date: string
-          status: Database["public"]["Enums"]["calendar_status"]
-          target_keyword: string
+          scheduled_date: string | null
+          status: string | null
+          target_keyword: string | null
           title: string
           tone: string | null
-          updated_at: string
         }
         Insert: {
           article_id?: string | null
-          audit_recommendations?: Json | null
           audit_score?: number | null
           content_brief?: string | null
           content_goal?: string | null
           created_at?: string
-          frequency?: string | null
           id?: string
           keywords?: string[] | null
           persona?: string | null
-          scheduled_date: string
-          status?: Database["public"]["Enums"]["calendar_status"]
-          target_keyword: string
+          scheduled_date?: string | null
+          status?: string | null
+          target_keyword?: string | null
           title: string
           tone?: string | null
-          updated_at?: string
         }
         Update: {
           article_id?: string | null
-          audit_recommendations?: Json | null
           audit_score?: number | null
           content_brief?: string | null
           content_goal?: string | null
           created_at?: string
-          frequency?: string | null
           id?: string
           keywords?: string[] | null
           persona?: string | null
-          scheduled_date?: string
-          status?: Database["public"]["Enums"]["calendar_status"]
-          target_keyword?: string
+          scheduled_date?: string | null
+          status?: string | null
+          target_keyword?: string | null
           title?: string
           tone?: string | null
-          updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "content_calendar_article_id_fkey"
-            columns: ["article_id"]
-            isOneToOne: false
-            referencedRelation: "articles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
