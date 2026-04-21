@@ -63,6 +63,22 @@ interface KeywordResult {
 interface TrendItem { keyword: string; interest: number; rising: boolean; }
 interface PAAItem { question: string; intent: string; }
 
+interface CompetitorKeyword {
+  keyword: string;
+  intent: string;
+  difficulty: string;
+  relevance: number;
+}
+
+interface CompetitorAnalysis {
+  url: string;
+  title: string;
+  description: string;
+  main_topic: string;
+  keywords: CompetitorKeyword[];
+  content_gaps: string[];
+}
+
 // --- Helpers ---
 const competitionColor = (level: string) => {
   const l = level.toLowerCase();
