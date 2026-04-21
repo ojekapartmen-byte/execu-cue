@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/useSEO";
+import { supabase } from "@/integrations/supabase/client";
 
 // --- Interfaces ---
 interface KeywordSuggestion {
@@ -62,6 +63,22 @@ interface KeywordResult {
 interface TrendItem { keyword: string; interest: number; rising: boolean; }
 interface PAAItem { question: string; intent: string; }
 
+interface CompetitorKeyword {
+  keyword: string;
+  intent: string;
+  difficulty: string;
+  relevance: number;
+}
+
+interface CompetitorAnalysis {
+  url: string;
+  title: string;
+  description: string;
+  main_topic: string;
+  keywords: CompetitorKeyword[];
+  content_gaps: string[];
+}
+
 // --- Helpers ---
 const competitionColor = (level: string) => {
   const l = level.toLowerCase();
@@ -103,7 +120,7 @@ const KeywordResearch = () => {
   // Extra Results
   const [trendResults, setTrendResults] = useState<TrendItem[]>([]);
   const [paaResults, setPaaResults] = useState<PAAItem[]>([]);
-  const [competitorKeywords, setCompetitorKeywords] = useState<string[]>([]);
+  const [competitorAnalysis, setCompetitorAnalysis] = useState<CompetitorAnalysis | null>(null);
 
   // Load strategy from local storage
   useEffect(() => {
@@ -205,17 +222,24 @@ const KeywordResearch = () => {
     e.preventDefault();
     if (!competitorUrl.trim()) return;
     setIsMockLoading(true);
+    setCompetitorAnalysis(null);
     try {
-      const response = await fetch("https://google.serper.dev/search", {
-        method: "POST",
-        headers: { "X-API-KEY": import.meta.env.VITE_SERPER_API_KEY!, "Content-Type": "application/json" },
-        body: JSON.stringify({ q: `site:${competitorUrl}`, gl: "id" }),
+      const { data, error } = await supabase.functions.invoke("competitor-keywords", {
+        body: { url: competitorUrl.trim() },
       });
-      const data = await response.json();
-      const kw = (data.organic || []).map((o: any) => o.title.split(' - ')[0]);
-      setCompetitorKeywords(kw);
-      toast({ title: "Extraction Berhasil", description: `Mendapatkan ${kw.length} keyword dari kompetitor.` });
-    } catch (e) { console.error(e); } finally { setIsMockLoading(false); }
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setCompetitorAnalysis(data as CompetitorAnalysis);
+      toast({
+        title: "Analisis Berhasil",
+        description: `Mendapatkan ${data.keywords?.length || 0} keyword dari kompetitor.`,
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Gagal", description: e.message || "Tidak bisa menganalisis URL", variant: "destructive" });
+    } finally {
+      setIsMockLoading(false);
+    }
   };
 
   // --- 3. Fungsi Intent & PAA ---
@@ -336,20 +360,75 @@ const KeywordResearch = () => {
           {/* Content tabs lainnya disingkat untuk efisiensi tapi kodenya lengkap di bawah */}
           <TabsContent value="competitor">
              <Card className="border-none shadow-sm">
-               <CardHeader><CardTitle>Competitor Analysis</CardTitle></CardHeader>
+               <CardHeader>
+                 <CardTitle>Competitor Analysis</CardTitle>
+                 <CardDescription>Scrape URL kompetitor & ekstrak keyword SEO mereka dengan AI.</CardDescription>
+               </CardHeader>
                <CardContent>
                  <form onSubmit={handleCompetitorResearch} className="flex gap-3">
-                   <Input value={competitorUrl} onChange={(e) => setCompetitorUrl(e.target.value)} placeholder="https://kompetitor.com" className="h-12" />
-                   <Button type="submit" disabled={isMockLoading} className="h-12">Extract</Button>
+                   <Input
+                     value={competitorUrl}
+                     onChange={(e) => setCompetitorUrl(e.target.value)}
+                     placeholder="https://kompetitor.com/halaman-target"
+                     className="h-12"
+                   />
+                   <Button type="submit" disabled={isMockLoading} className="h-12 px-6 bg-slate-900">
+                     {isMockLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Analyze"}
+                   </Button>
                  </form>
-                 {competitorKeywords.length > 0 && (
-                   <div className="mt-6 grid grid-cols-1 gap-2">
-                     {competitorKeywords.map((kw, i) => (
-                       <div key={i} className="flex justify-between items-center p-3 bg-white border rounded-lg">
-                         <span className="text-sm font-medium">{kw}</span>
-                         <StrategyBadge kw={kw} />
+                 {isMockLoading && (
+                   <div className="mt-8 text-center py-10">
+                     <Loader2 className="w-10 h-10 animate-spin mx-auto text-blue-600 mb-3" />
+                     <p className="text-sm text-slate-500">Scraping & menganalisis konten kompetitor...</p>
+                   </div>
+                 )}
+                 {competitorAnalysis && (
+                   <div className="mt-8 space-y-6">
+                     {/* Summary */}
+                     <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+                       <p className="text-xs text-blue-600 font-bold uppercase mb-1">Topik Utama</p>
+                       <p className="text-lg font-semibold text-slate-900">{competitorAnalysis.main_topic}</p>
+                       <p className="text-sm text-slate-600 mt-1 line-clamp-2">{competitorAnalysis.title}</p>
+                     </div>
+
+                     {/* Keywords */}
+                     <div>
+                       <h3 className="text-sm font-bold uppercase text-slate-500 mb-3">
+                         Keyword Ditemukan ({competitorAnalysis.keywords.length})
+                       </h3>
+                       <div className="space-y-2">
+                         {competitorAnalysis.keywords
+                           .sort((a, b) => b.relevance - a.relevance)
+                           .map((k, i) => (
+                           <div key={i} className="flex justify-between items-center p-3 bg-white border rounded-lg hover:border-blue-300 transition">
+                             <div className="flex items-center gap-3 flex-1 min-w-0">
+                               <span className="text-xs font-mono text-slate-400 w-8">{k.relevance}</span>
+                               <span className="text-sm font-medium truncate">{k.keyword}</span>
+                               <Badge className={intentColor(k.intent)} variant="outline">{k.intent}</Badge>
+                               <Badge className={competitionColor(k.difficulty)} variant="outline">{k.difficulty}</Badge>
+                             </div>
+                             <StrategyBadge kw={k.keyword} />
+                           </div>
+                         ))}
                        </div>
-                     ))}
+                     </div>
+
+                     {/* Content Gaps */}
+                     {competitorAnalysis.content_gaps?.length > 0 && (
+                       <div>
+                         <h3 className="text-sm font-bold uppercase text-slate-500 mb-3">
+                           Content Gaps (Peluang)
+                         </h3>
+                         <div className="space-y-2">
+                           {competitorAnalysis.content_gaps.map((gap, i) => (
+                             <div key={i} className="flex justify-between items-center p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                               <span className="text-sm font-medium text-slate-800">💡 {gap}</span>
+                               <StrategyBadge kw={gap} />
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
                    </div>
                  )}
                </CardContent>
