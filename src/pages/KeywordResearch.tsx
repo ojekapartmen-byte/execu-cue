@@ -120,7 +120,7 @@ const KeywordResearch = () => {
   // Extra Results
   const [trendResults, setTrendResults] = useState<TrendItem[]>([]);
   const [paaResults, setPaaResults] = useState<PAAItem[]>([]);
-  const [competitorKeywords, setCompetitorKeywords] = useState<string[]>([]);
+  const [competitorAnalysis, setCompetitorAnalysis] = useState<CompetitorAnalysis | null>(null);
 
   // Load strategy from local storage
   useEffect(() => {
