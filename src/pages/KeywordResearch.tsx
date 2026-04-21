@@ -222,17 +222,24 @@ const KeywordResearch = () => {
     e.preventDefault();
     if (!competitorUrl.trim()) return;
     setIsMockLoading(true);
+    setCompetitorAnalysis(null);
     try {
-      const response = await fetch("https://google.serper.dev/search", {
-        method: "POST",
-        headers: { "X-API-KEY": import.meta.env.VITE_SERPER_API_KEY!, "Content-Type": "application/json" },
-        body: JSON.stringify({ q: `site:${competitorUrl}`, gl: "id" }),
+      const { data, error } = await supabase.functions.invoke("competitor-keywords", {
+        body: { url: competitorUrl.trim() },
       });
-      const data = await response.json();
-      const kw = (data.organic || []).map((o: any) => o.title.split(' - ')[0]);
-      setCompetitorKeywords(kw);
-      toast({ title: "Extraction Berhasil", description: `Mendapatkan ${kw.length} keyword dari kompetitor.` });
-    } catch (e) { console.error(e); } finally { setIsMockLoading(false); }
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setCompetitorAnalysis(data as CompetitorAnalysis);
+      toast({
+        title: "Analisis Berhasil",
+        description: `Mendapatkan ${data.keywords?.length || 0} keyword dari kompetitor.`,
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Gagal", description: e.message || "Tidak bisa menganalisis URL", variant: "destructive" });
+    } finally {
+      setIsMockLoading(false);
+    }
   };
 
   // --- 3. Fungsi Intent & PAA ---
