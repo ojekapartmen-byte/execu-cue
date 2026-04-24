@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.competitor-keywords]
 verify_jwt = false
+
+[functions.keyword-trends]
+verify_jwt = false
