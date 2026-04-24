@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Search, Download, Loader2, TrendingUp, Globe, BarChart3,
-  Layers, ExternalLink, Plus, Users, HelpCircle, CheckSquare
+  Layers, ExternalLink, Plus, Users, HelpCircle, CheckSquare, Flame, Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +60,19 @@ interface KeywordResult {
   };
 }
 
-interface TrendItem { keyword: string; interest: number; rising: boolean; }
+interface TrendItem {
+  keyword: string;
+  interest: number;
+  rising: boolean;
+  category: "breakout" | "rising" | "stable" | "seasonal";
+}
+interface TrendResponse {
+  keyword: string;
+  geo: string;
+  summary: string;
+  trends: TrendItem[];
+  relatedTopics: string[];
+}
 interface PAAItem { question: string; intent: string; }
 
 interface CompetitorKeyword {
@@ -118,7 +130,10 @@ const KeywordResearch = () => {
   const [selectedForStrategy, setSelectedForStrategy] = useState<Set<string>>(new Set());
   
   // Extra Results
-  const [trendResults, setTrendResults] = useState<TrendItem[]>([]);
+  const [trendData, setTrendData] = useState<TrendResponse | null>(null);
+  const [trendKeyword, setTrendKeyword] = useState("");
+  const [trendGeo, setTrendGeo] = useState<"ID" | "US">("ID");
+  const [isTrendLoading, setIsTrendLoading] = useState(false);
   const [paaResults, setPaaResults] = useState<PAAItem[]>([]);
   const [competitorAnalysis, setCompetitorAnalysis] = useState<CompetitorAnalysis | null>(null);
 
@@ -259,6 +274,35 @@ const KeywordResearch = () => {
       }));
       setPaaResults(paa);
     } catch (e) { console.error(e); } finally { setIsMockLoading(false); }
+  };
+
+  // --- 4. Fungsi Trends ---
+  const handleTrendSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!trendKeyword.trim()) return;
+    setIsTrendLoading(true);
+    setTrendData(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("keyword-trends", {
+        body: {
+          keyword: trendKeyword.trim(),
+          language: trendGeo === "ID" ? "id" : "en",
+          geo: trendGeo,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setTrendData(data as TrendResponse);
+      toast({
+        title: "Trends Loaded",
+        description: `${data.trends?.length || 0} keyword tren ditemukan.`,
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast({ title: "Gagal", description: err.message || "Tidak bisa mengambil trends", variant: "destructive" });
+    } finally {
+      setIsTrendLoading(false);
+    }
   };
 
   // --- Utility Handlers ---
