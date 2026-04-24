@@ -38,9 +38,6 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
   scheduled: { label: "Scheduled", color: "bg-orange-500/10 text-orange-700 border-orange-200", icon: CalendarDays },
 };
 
-const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
-
 function formatYmd(d: Date) {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -55,54 +52,6 @@ function isValidYmd(s: string) {
 const BATCH_MIN = 7;
 const BATCH_MAX = 10;
 
-function parseJsonWithArray(raw: string): unknown[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (e) {
-    if (e instanceof SyntaxError) {
-      throw new Error("Format JSON tidak valid — respons mungkin terpotong atau bukan JSON.");
-    }
-    throw e;
-  }
-  if (Array.isArray(parsed)) return parsed;
-  if (parsed && typeof parsed === "object") {
-    const o = parsed as Record<string, unknown>;
-    if (Array.isArray(o.items)) return o.items;
-    if (Array.isArray(o.calendar)) return o.calendar;
-    if (Array.isArray(o.entries)) return o.entries;
-  }
-  throw new Error("Bukan array JSON yang diharapkan.");
-}
-
-/** Mengekstrak dan mem-parse array JSON dari teks model; aman terhadap string kosong / SyntaxError. */
-function parseGroqJsonArray(content: string): unknown[] {
-  if (typeof content !== "string" || !content.trim()) {
-    throw new Error("Teks respons kosong, tidak bisa di-parse.");
-  }
-  let text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-  if (!text) {
-    throw new Error("Setelah dibersihkan, teks respons masih kosong.");
-  }
-  try {
-    return parseJsonWithArray(text);
-  } catch {
-    const start = text.indexOf("[");
-    const end = text.lastIndexOf("]");
-    if (start === -1 || end <= start) {
-      throw new Error("Tidak menemukan array JSON [ ... ] dalam respons.");
-    }
-    return parseJsonWithArray(text.slice(start, end + 1));
-  }
-}
-
-/** Respons AI: hemat token — hanya 3 field. */
-type GroqIdeaItem = {
-  title: string;
-  target_keyword: string;
-  content_brief: string | null;
-};
-
 /** Baris insert ke `content_calendar` (Supabase snake_case). */
 type ContentCalendarInsertRow = {
   title: string;
@@ -116,35 +65,35 @@ type ContentCalendarInsertRow = {
   status: "draft";
 };
 
-function parseGroqIdea(entry: unknown, index: number, fallbackKeyword: string): GroqIdeaItem {
+function normalizeAiItem(
+  entry: unknown,
+  index: number,
+  ctx: { persona: string; tone: string; contentGoal: string; fallbackKeyword: string; scheduledDate: string }
+): ContentCalendarInsertRow {
   const item = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
   const title = String(item.title ?? "").trim() || `Idea ${index + 1}`;
-  const target_keyword = String(item.target_keyword ?? fallbackKeyword).trim();
+  const target_keyword = String(item.target_keyword ?? ctx.fallbackKeyword).trim();
   const briefRaw = item.content_brief;
   const content_brief =
     briefRaw != null && String(briefRaw).trim() !== "" ? String(briefRaw).trim() : null;
-  return { title, target_keyword, content_brief };
-}
-
-/** Gabungkan output AI dengan state UI; tanggal awal = hari ini (DB `scheduled_date` NOT NULL). */
-function mergeIdeasToCalendarRows(
-  raw: unknown[],
-  ctx: { persona: string; tone: string; contentGoal: string; fallbackKeyword: string; scheduledDate: string }
-): ContentCalendarInsertRow[] {
-  return raw.map((entry, index) => {
-    const idea = parseGroqIdea(entry, index, ctx.fallbackKeyword);
-    return {
-      title: idea.title,
-      target_keyword: idea.target_keyword,
-      keywords: [],
-      content_brief: idea.content_brief,
-      scheduled_date: ctx.scheduledDate,
-      persona: ctx.persona,
-      tone: ctx.tone,
-      content_goal: ctx.contentGoal,
-      status: "draft",
-    };
-  });
+  const keywordsRaw = item.keywords;
+  const keywords = Array.isArray(keywordsRaw)
+    ? keywordsRaw.map((k) => String(k)).filter(Boolean)
+    : [];
+  const scheduledRaw = item.scheduled_date;
+  const scheduled_date =
+    typeof scheduledRaw === "string" && isValidYmd(scheduledRaw) ? scheduledRaw : ctx.scheduledDate;
+  return {
+    title,
+    target_keyword,
+    keywords,
+    content_brief,
+    scheduled_date,
+    persona: ctx.persona,
+    tone: ctx.tone,
+    content_goal: ctx.contentGoal,
+    status: "draft",
+  };
 }
 
 const ContentCalendar = () => {
