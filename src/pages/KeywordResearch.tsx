@@ -479,6 +479,113 @@ const KeywordResearch = () => {
              </Card>
           </TabsContent>
 
+          <TabsContent value="trends">
+            <Card className="border-none shadow-sm overflow-hidden">
+              <div className="h-1 bg-orange-500" />
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-orange-500" /> Keyword Trends
+                </CardTitle>
+                <CardDescription>
+                  Sinkronisasi AI + berita real-time (7 hari terakhir) untuk mendeteksi keyword yang sedang naik daun.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleTrendSearch} className="flex gap-3">
+                  <Input
+                    value={trendKeyword}
+                    onChange={(e) => setTrendKeyword(e.target.value)}
+                    placeholder="Contoh: AI marketing, kopi specialty, ev motor..."
+                    className="h-12 text-lg px-4"
+                  />
+                  <Select value={trendGeo} onValueChange={(v) => setTrendGeo(v as "ID" | "US")}>
+                    <SelectTrigger className="w-28 h-12"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ID">🇮🇩 ID</SelectItem>
+                      <SelectItem value="US">🇺🇸 US</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button type="submit" disabled={isTrendLoading} className="h-12 px-6 bg-slate-900">
+                    {isTrendLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Detect Trends"}
+                  </Button>
+                </form>
+
+                {isTrendLoading && (
+                  <div className="mt-8 text-center py-10">
+                    <Loader2 className="w-10 h-10 animate-spin mx-auto text-orange-500 mb-3" />
+                    <p className="text-sm text-slate-500">Memindai berita & sinyal Google...</p>
+                  </div>
+                )}
+
+                {trendData && (
+                  <div className="mt-8 space-y-6">
+                    {/* Summary */}
+                    <div className="p-4 rounded-xl bg-orange-50 border border-orange-100">
+                      <p className="text-xs text-orange-600 font-bold uppercase mb-1 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> AI Trend Summary
+                      </p>
+                      <p className="text-sm text-slate-700 leading-relaxed">{trendData.summary}</p>
+                    </div>
+
+                    {/* Trend list */}
+                    <div>
+                      <h3 className="text-sm font-bold uppercase text-slate-500 mb-3">
+                        Trending Keywords ({trendData.trends.length})
+                      </h3>
+                      <div className="space-y-2">
+                        {trendData.trends
+                          .sort((a, b) => b.interest - a.interest)
+                          .map((t, i) => (
+                            <div key={i} className="flex justify-between items-center p-3 bg-white border rounded-lg hover:border-orange-300 transition">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <span className="text-xs font-mono text-slate-400 w-8">#{i + 1}</span>
+                                <span className="text-sm font-medium truncate">{t.keyword}</span>
+                                {t.category === "breakout" && (
+                                  <Badge className="bg-red-500/10 text-red-700 border-red-200 gap-1" variant="outline">
+                                    <Flame className="w-3 h-3" /> Breakout
+                                  </Badge>
+                                )}
+                                {t.category === "rising" && (
+                                  <Badge className="bg-orange-500/10 text-orange-700 border-orange-200" variant="outline">↑ Rising</Badge>
+                                )}
+                                {t.category === "stable" && (
+                                  <Badge className="bg-blue-500/10 text-blue-700 border-blue-200" variant="outline">Stable</Badge>
+                                )}
+                                {t.category === "seasonal" && (
+                                  <Badge className="bg-purple-500/10 text-purple-700 border-purple-200" variant="outline">Seasonal</Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className="w-24">
+                                  <Progress value={t.interest} className="h-1.5" />
+                                  <p className="text-[10px] text-slate-400 mt-1 text-right">{t.interest}/100</p>
+                                </div>
+                                <StrategyBadge kw={t.keyword} />
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Related topics */}
+                    {trendData.relatedTopics?.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-bold uppercase text-slate-500 mb-3">Related Topics</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {trendData.relatedTopics.map((topic, i) => (
+                            <Badge key={i} variant="outline" className="text-sm py-1.5 px-3 bg-white">
+                              {topic}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="intent">
              <Card className="border-none shadow-sm">
                <CardHeader><CardTitle>People Also Ask</CardTitle></CardHeader>
