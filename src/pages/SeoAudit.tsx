@@ -16,6 +16,7 @@ import { useArticles, Article } from "@/hooks/useArticles";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import DOMPurify from "dompurify";
  
 interface CrawlabilityResult {
   robotsTxt: {
@@ -611,7 +612,7 @@ const SeoAudit = () => {
                  {editedContent ? (
                    <div
                      className="p-4 rounded-lg bg-muted/50 border border-border font-mono text-sm whitespace-pre-wrap"
-                     dangerouslySetInnerHTML={{ __html: editedContent }}
+                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editedContent) }}
                    />
                  ) : (
                    <p className="text-muted-foreground">Belum ada rekomendasi yang diterapkan.</p>
