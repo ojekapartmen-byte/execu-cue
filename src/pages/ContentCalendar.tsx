@@ -38,9 +38,6 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
   scheduled: { label: "Scheduled", color: "bg-orange-500/10 text-orange-700 border-orange-200", icon: CalendarDays },
 };
 
-const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
-
 function formatYmd(d: Date) {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -55,54 +52,6 @@ function isValidYmd(s: string) {
 const BATCH_MIN = 7;
 const BATCH_MAX = 10;
 
-function parseJsonWithArray(raw: string): unknown[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (e) {
-    if (e instanceof SyntaxError) {
-      throw new Error("Format JSON tidak valid — respons mungkin terpotong atau bukan JSON.");
-    }
-    throw e;
-  }
-  if (Array.isArray(parsed)) return parsed;
-  if (parsed && typeof parsed === "object") {
-    const o = parsed as Record<string, unknown>;
-    if (Array.isArray(o.items)) return o.items;
-    if (Array.isArray(o.calendar)) return o.calendar;
-    if (Array.isArray(o.entries)) return o.entries;
-  }
-  throw new Error("Bukan array JSON yang diharapkan.");
-}
-
-/** Mengekstrak dan mem-parse array JSON dari teks model; aman terhadap string kosong / SyntaxError. */
-function parseGroqJsonArray(content: string): unknown[] {
-  if (typeof content !== "string" || !content.trim()) {
-    throw new Error("Teks respons kosong, tidak bisa di-parse.");
-  }
-  let text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-  if (!text) {
-    throw new Error("Setelah dibersihkan, teks respons masih kosong.");
-  }
-  try {
-    return parseJsonWithArray(text);
-  } catch {
-    const start = text.indexOf("[");
-    const end = text.lastIndexOf("]");
-    if (start === -1 || end <= start) {
-      throw new Error("Tidak menemukan array JSON [ ... ] dalam respons.");
-    }
-    return parseJsonWithArray(text.slice(start, end + 1));
-  }
-}
-
-/** Respons AI: hemat token — hanya 3 field. */
-type GroqIdeaItem = {
-  title: string;
-  target_keyword: string;
-  content_brief: string | null;
-};
-
 /** Baris insert ke `content_calendar` (Supabase snake_case). */
 type ContentCalendarInsertRow = {
   title: string;
@@ -116,35 +65,35 @@ type ContentCalendarInsertRow = {
   status: "draft";
 };
 
-function parseGroqIdea(entry: unknown, index: number, fallbackKeyword: string): GroqIdeaItem {
+function normalizeAiItem(
+  entry: unknown,
+  index: number,
+  ctx: { persona: string; tone: string; contentGoal: string; fallbackKeyword: string; scheduledDate: string }
+): ContentCalendarInsertRow {
   const item = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
   const title = String(item.title ?? "").trim() || `Idea ${index + 1}`;
-  const target_keyword = String(item.target_keyword ?? fallbackKeyword).trim();
+  const target_keyword = String(item.target_keyword ?? ctx.fallbackKeyword).trim();
   const briefRaw = item.content_brief;
   const content_brief =
     briefRaw != null && String(briefRaw).trim() !== "" ? String(briefRaw).trim() : null;
-  return { title, target_keyword, content_brief };
-}
-
-/** Gabungkan output AI dengan state UI; tanggal awal = hari ini (DB `scheduled_date` NOT NULL). */
-function mergeIdeasToCalendarRows(
-  raw: unknown[],
-  ctx: { persona: string; tone: string; contentGoal: string; fallbackKeyword: string; scheduledDate: string }
-): ContentCalendarInsertRow[] {
-  return raw.map((entry, index) => {
-    const idea = parseGroqIdea(entry, index, ctx.fallbackKeyword);
-    return {
-      title: idea.title,
-      target_keyword: idea.target_keyword,
-      keywords: [],
-      content_brief: idea.content_brief,
-      scheduled_date: ctx.scheduledDate,
-      persona: ctx.persona,
-      tone: ctx.tone,
-      content_goal: ctx.contentGoal,
-      status: "draft",
-    };
-  });
+  const keywordsRaw = item.keywords;
+  const keywords = Array.isArray(keywordsRaw)
+    ? keywordsRaw.map((k) => String(k)).filter(Boolean)
+    : [];
+  const scheduledRaw = item.scheduled_date;
+  const scheduled_date =
+    typeof scheduledRaw === "string" && isValidYmd(scheduledRaw) ? scheduledRaw : ctx.scheduledDate;
+  return {
+    title,
+    target_keyword,
+    keywords,
+    content_brief,
+    scheduled_date,
+    persona: ctx.persona,
+    tone: ctx.tone,
+    content_goal: ctx.contentGoal,
+    status: "draft",
+  };
 }
 
 const ContentCalendar = () => {
@@ -194,97 +143,34 @@ const ContentCalendar = () => {
       return;
     }
 
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
-    if (!apiKey?.trim()) {
-      toast({
-        title: "API Key belum diset",
-        description: "Tambahkan VITE_GROQ_API_KEY di file .env Anda.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsGenerating(true);
     const initialScheduledDate = formatYmd(new Date());
 
-    const userPrompt = `Return ONLY a JSON array — no markdown, no explanation, no keys outside each object.
-
-Length: ${BATCH_MIN} to ${BATCH_MAX} objects inclusive.
-
-Each object MUST have exactly these 3 keys:
-"title" (short SEO title),
-"target_keyword" (string),
-"content_brief" (one sentence max).
-
-Seed keywords to cover: ${selectedKeywords.join(", ")}`;
-
     try {
-      const response = await fetch(GROQ_CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey.trim()}`,
+      const { data, error: fnError } = await supabase.functions.invoke("generate-calendar", {
+        body: {
+          keywords: selectedKeywords,
+          persona,
+          contentGoal,
+          frequency,
+          tone,
+          language: "id",
         },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: "system", content: "Senior SEO Content Strategist. Reply with JSON array only." },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.45,
-          max_tokens: 1536,
-        }),
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        const msg = result?.error?.message ?? response.statusText ?? "Groq request failed";
-        throw new Error(msg);
+      if (fnError) {
+        throw new Error(fnError.message || "Gagal memanggil generate-calendar.");
       }
 
-      const choice = result?.choices?.[0];
-      const rawText = choice?.message?.content;
+      const rawItems = Array.isArray((data as { items?: unknown[] } | null)?.items)
+        ? ((data as { items: unknown[] }).items)
+        : [];
 
-      if (choice?.finish_reason === "length") {
-        throw new Error("Respons terpotong oleh batas token. Coba lagi — batch sudah dibatasi 7–10 item.");
-      }
-
-      if (rawText == null) {
-        throw new Error("Model tidak mengembalikan konten (choices[0].message.content hilang).");
-      }
-      if (typeof rawText !== "string") {
-        throw new Error("Format respons AI tidak didukung (bukan string).");
-      }
-      const trimmedContent = rawText.trim();
-      if (!trimmedContent) {
-        throw new Error("Model mengembalikan teks kosong.");
+      if (rawItems.length === 0) {
+        throw new Error("AI tidak mengembalikan ide konten.");
       }
 
-      let parsed: unknown[];
-      try {
-        parsed = parseGroqJsonArray(trimmedContent);
-      } catch (parseErr) {
-        const hint =
-          trimmedContent.length > 0 && !trimmedContent.trim().endsWith("]")
-            ? " Respons tampak tidak lengkap (bukan diakhiri dengan ])."
-            : "";
-        const base = parseErr instanceof Error ? parseErr.message : "Gagal mem-parse JSON.";
-        throw new Error(`${base}${hint}`);
-      }
-
-      if (parsed.length === 0) {
-        throw new Error("Array JSON kosong.");
-      }
-
-      if (parsed.length > BATCH_MAX) {
-        toast({
-          title: "Catatan",
-          description: `AI mengembalikan ${parsed.length} item; hanya ${BATCH_MAX} pertama yang disimpan.`,
-        });
-      }
-
-      const batch = parsed.slice(0, BATCH_MAX);
+      const batch = rawItems.slice(0, BATCH_MAX);
       if (batch.length < BATCH_MIN) {
         toast({
           title: "Batch pendek",
@@ -292,13 +178,15 @@ Seed keywords to cover: ${selectedKeywords.join(", ")}`;
         });
       }
 
-      const itemsToInsert = mergeIdeasToCalendarRows(batch, {
-        persona,
-        tone,
-        contentGoal,
-        fallbackKeyword: selectedKeywords[0] ?? "",
-        scheduledDate: initialScheduledDate,
-      });
+      const itemsToInsert: ContentCalendarInsertRow[] = batch.map((entry, index) =>
+        normalizeAiItem(entry, index, {
+          persona,
+          tone,
+          contentGoal,
+          fallbackKeyword: selectedKeywords[0] ?? "",
+          scheduledDate: initialScheduledDate,
+        })
+      );
 
       // Insert ke content_calendar: merge AI (3 field) + UI (persona, tone, goal) + tanggal awal hari ini + status draft
       const { error: insertError } = await supabase.from("content_calendar").insert(itemsToInsert);
@@ -311,7 +199,7 @@ Seed keywords to cover: ${selectedKeywords.join(", ")}`;
       fetchCalendarItems();
     } catch (err: unknown) {
       console.error("AI Error Detail:", err);
-      const message = err instanceof Error ? err.message : "Pastikan API Key benar dan internet lancar.";
+      const message = err instanceof Error ? err.message : "Terjadi kesalahan saat menghasilkan ide.";
       toast({
         title: "Gagal Generate",
         description: message,
@@ -381,7 +269,7 @@ Seed keywords to cover: ${selectedKeywords.join(", ")}`;
               Menyusun batch ide konten
             </p>
             <p className="mt-2 text-center text-sm text-slate-500">
-              Groq · {GROQ_MODEL} · JSON mini ({BATCH_MIN}–{BATCH_MAX} ide)…
+              Lovable AI · gemini-3-flash · JSON mini ({BATCH_MIN}–{BATCH_MAX} ide)…
             </p>
             <div className="mt-6 space-y-2">
               <Skeleton className="h-2 w-full rounded-full bg-slate-200/80" />
