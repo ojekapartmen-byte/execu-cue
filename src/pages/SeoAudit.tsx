@@ -612,7 +612,7 @@ const SeoAudit = () => {
                  {editedContent ? (
                    <div
                      className="p-4 rounded-lg bg-muted/50 border border-border font-mono text-sm whitespace-pre-wrap"
-                     dangerouslySetInnerHTML={{ __html: editedContent }}
+                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editedContent) }}
                    />
                  ) : (
                    <p className="text-muted-foreground">Belum ada rekomendasi yang diterapkan.</p>
