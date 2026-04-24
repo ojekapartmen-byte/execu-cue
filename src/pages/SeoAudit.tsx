@@ -16,6 +16,7 @@ import { useArticles, Article } from "@/hooks/useArticles";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import DOMPurify from "dompurify";
  
 interface CrawlabilityResult {
   robotsTxt: {
