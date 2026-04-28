@@ -13,6 +13,7 @@ import KeywordResearch from "./pages/KeywordResearch";
 import ContentCalendar from "./pages/ContentCalendar";
 import CategoryManager from "./pages/CategoryManager"; 
 import Distribution from "./pages/Distribution"; // Tambahkan Import Distribution
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -22,9 +23,10 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
+        <ErrorBoundary>
+         <Routes>
           {/* Dashboard Utama SEO OS */}
-          <Route path="/" element={<Index />} /> 
+          <Route path="/" element={<ErrorBoundary><Index /></ErrorBoundary>} /> 
           
           {/* Menu-menu SEO OS */}
           <Route path="/research" element={<KeywordResearch />} />
@@ -40,7 +42,8 @@ const App = () => (
           
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
-        </Routes>
+         </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
