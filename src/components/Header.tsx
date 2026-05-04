@@ -1,10 +1,12 @@
-import { Newspaper, PenSquare } from "lucide-react";
+import { LogOut, Newspaper, PenSquare } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Header = () => {
   const location = useLocation();
   const isCreateArticle = location.pathname === "/create-article";
+  const { user, signOut } = useAuth();
 
   return (
     <header className="w-full border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50" role="banner">
@@ -40,6 +42,12 @@ export const Header = () => {
               <span>Powered by AI</span>
               <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
             </div>
+            {user && (
+              <Button variant="ghost" size="sm" onClick={signOut} className="gap-2 text-muted-foreground">
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Keluar</span>
+              </Button>
+            )}
           </div>
         </div>
       </nav>

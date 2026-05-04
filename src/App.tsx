@@ -3,6 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./hooks/useAuth";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import LandingPage from "./pages/LandingPage";
 import Index from "./pages/Index"; // Ini Dashboard Utama
 import CreateArticle from "./pages/CreateArticle";
@@ -23,27 +27,29 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <AuthProvider>
         <ErrorBoundary>
          <Routes>
-          {/* Dashboard Utama SEO OS */}
-          <Route path="/" element={<ErrorBoundary><Index /></ErrorBoundary>} /> 
-          
-          {/* Menu-menu SEO OS */}
-          <Route path="/research" element={<KeywordResearch />} />
-          <Route path="/content-calendar" element={<ContentCalendar />} />
-          <Route path="/create-article" element={<CreateArticle />} />
-          <Route path="/audit" element={<SeoAudit />} />
-          <Route path="/distribution" element={<Distribution />} /> {/* Rute baru untuk Distribusi */}
-          
-          {/* Fitur Tambahan */}
-          <Route path="/daily-digest" element={<LandingPage />} />
-          <Route path="/article-history" element={<ArticleHistory />} />
-          <Route path="/categories" element={<CategoryManager />} /> 
-          
+          {/* Public */}
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+
+          {/* Protected */}
+          <Route path="/" element={<ProtectedRoute><ErrorBoundary><Index /></ErrorBoundary></ProtectedRoute>} />
+          <Route path="/research" element={<ProtectedRoute><KeywordResearch /></ProtectedRoute>} />
+          <Route path="/content-calendar" element={<ProtectedRoute><ContentCalendar /></ProtectedRoute>} />
+          <Route path="/create-article" element={<ProtectedRoute><CreateArticle /></ProtectedRoute>} />
+          <Route path="/audit" element={<ProtectedRoute><SeoAudit /></ProtectedRoute>} />
+          <Route path="/distribution" element={<ProtectedRoute><Distribution /></ProtectedRoute>} />
+          <Route path="/daily-digest" element={<ProtectedRoute><LandingPage /></ProtectedRoute>} />
+          <Route path="/article-history" element={<ProtectedRoute><ArticleHistory /></ProtectedRoute>} />
+          <Route path="/categories" element={<ProtectedRoute><CategoryManager /></ProtectedRoute>} />
+
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
          </Routes>
         </ErrorBoundary>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
