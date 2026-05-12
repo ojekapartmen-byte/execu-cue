@@ -22,13 +22,13 @@ import ErrorBoundary from "./components/ErrorBoundary";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-        <ErrorBoundary>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
          <Routes>
           {/* Public */}
           <Route path="/auth" element={<Auth />} />
@@ -48,11 +48,11 @@ const App = () => (
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
          </Routes>
-        </ErrorBoundary>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
